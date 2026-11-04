@@ -38,7 +38,16 @@
           historial: [{ id: uid(), f: iso(-30), t: "Consulta general", d: "Sarro moderado. Se programa limpieza dental en ayunas de 12 h.", vet: "Dr. Andrés Salas", peso: "11.8 kg" }],
           rec: [{ id: uid(), i: "alert", t: "Ayuno 12 h antes de la limpieza", f: iso(4) }], actualizado: now() } } } } };
   }
-  const load = () => { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.clientes) return d; } catch (e) {} const d = seed(); save(d); return d; };
+  // Pet Shop, servicios y ajustes de ejemplo (datos.js)
+  function ensure(d) {
+    const X = window.DATOS; if (!X) return d; let ch = false;
+    const toMap = l => { const m = {}; l.forEach(({ id, ...r }) => m[id] = r); return m; };
+    if (!d.productos) { d.productos = toMap(X.productos); ch = true; }
+    if (!d.servicios) { d.servicios = toMap(X.servicios); ch = true; }
+    if (!d.ajustes) { d.ajustes = { ...X.ajustes }; ch = true; }
+    if (ch) save(d); return d;
+  }
+  const load = () => { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.clientes) return ensure(d); } catch (e) {} const d = seed(); save(d); return ensure(d); };
   const save = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { alert("No se pudo guardar (almacenamiento lleno). Usa fotos más pequeñas."); } };
   const clone = o => JSON.parse(JSON.stringify(o));
 
@@ -120,6 +129,26 @@
       return ms.docs.map(d => { const code = d.ref.parent.parent.id; return { code, id: d.id, dueno: cl[code]?.dueno || "", celular: cl[code]?.celular || "", ...d.data() }; });
     },
   };
+
+  /* ---------- Pet Shop, servicios y ajustes ---------- */
+  Object.assign(demo, {
+    async listCol(col) { return Object.entries(load()[col] || {}).map(([id, x]) => ({ ...clone(x), id })); },
+    async saveDocCol(col, id, data) { const d = load(); d[col] = d[col] || {}; id = id || uid(); d[col][id] = { ...(d[col][id] || {}), ...data, actualizado: now() }; save(d); return id; },
+    async delDocCol(col, id) { const d = load(); delete d[col][id]; save(d); },
+    async getAjustes() { return clone(load().ajustes || {}); },
+    async saveAjustes(a) { const d = load(); d.ajustes = { ...(d.ajustes || {}), ...a }; save(d); },
+    async importar(col) { const d = load(); d[col] = d[col] || {}; (window.DATOS[col] || []).forEach(({ id, ...r }) => d[col][id] = r); save(d); },
+  });
+  Object.assign(firebase, {
+    async listCol(col) { const f = await F(); const s = await f.getDocs(f.collection(f.db, col)); return s.docs.map(d => ({ ...d.data(), id: d.id })); },
+    async saveDocCol(col, id, data) { const f = await F();
+      if (!id) { const r = await f.addDoc(f.collection(f.db, col), { ...data, actualizado: now() }); return r.id; }
+      await f.setDoc(f.doc(f.db, col, id), { ...data, actualizado: now() }, { merge: true }); return id; },
+    async delDocCol(col, id) { const f = await F(); await f.deleteDoc(f.doc(f.db, col, id)); },
+    async getAjustes() { const f = await F(); const s = await f.getDoc(f.doc(f.db, "ajustes", "general")); return s.exists() ? s.data() : {}; },
+    async saveAjustes(a) { const f = await F(); await f.setDoc(f.doc(f.db, "ajustes", "general"), a, { merge: true }); },
+    async importar(col) { const f = await F(); for (const { id, ...r } of (window.DATOS[col] || [])) await f.setDoc(f.doc(f.db, col, id), { ...r, actualizado: now() }); },
+  });
 
   const api = DEMO ? demo : firebase;
   api.nuevoCodigo = async function () {

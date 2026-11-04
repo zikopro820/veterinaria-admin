@@ -65,13 +65,13 @@ $("#modalForm").addEventListener("submit", async e => {
   const f = $("#modalForm"); $$(".error", f).forEach(x => x.style.borderColor = "");
   const bad = $$("[required]", f).filter(x => !x.value.trim());
   if (bad.length) { bad.forEach(x => x.style.borderColor = "var(--red)"); bad[0].focus(); return; }
-  const data = {}; $$("[name]", f).forEach(x => data[x.name] = x.type === "checkbox" ? x.checked : x.value.trim());
+  const data = {}; $$("[name]", f).forEach(x => { if (x.type === "radio" && !x.checked) return; data[x.name] = x.type === "checkbox" ? x.checked : x.value.trim(); });
   const btn = $("#mOk"); btn.disabled = true;
   const ok = await safe(() => mSubmit(data));
   btn.disabled = false;
   if (ok !== false) closeModal();
 });
-const fld = (name, label, val = "", o = {}) => `<div class="field ${o.full ? "full" : ""}"><label>${label}${o.req ? " *" : ""}</label>${
+const fld = (name, label, val = "", o = {}) => o.type === "checkbox" ? `<label class="chk ${o.full ? "full" : ""}"><input type="checkbox" name="${name}" ${val ? "checked" : ""}><span><b>${label}</b>${o.ph ? `<small>${o.ph}</small>` : ""}</span></label>` : `<div class="field ${o.full ? "full" : ""}"><label>${label}${o.req ? " *" : ""}</label>${
   o.type === "textarea" ? `<textarea name="${name}" ${o.req ? "required" : ""} placeholder="${o.ph || ""}">${esc(val)}</textarea>`
   : o.opts ? `<select name="${name}" ${o.req ? "required" : ""}>${o.blank ? `<option value="">— Elegir —</option>` : ""}${o.opts.map(x => { const [v, t] = Array.isArray(x) ? x : [x, x]; return `<option value="${esc(v)}" ${v === val ? "selected" : ""}>${esc(t)}</option>`; }).join("")}</select>`
   : `<input name="${name}" type="${o.type || "text"}" value="${esc(val)}" ${o.req ? "required" : ""} placeholder="${o.ph || ""}" ${o.list ? `list="${o.list}"` : ""} ${o.extra || ""}>`}</div>`;
@@ -401,4 +401,198 @@ document.addEventListener("click", async e => {
     const k = t.dataset.delItem, id = t.dataset.id, names = { vacunas: "esta vacuna", historial: "esta atención del historial", rec: "este recordatorio" };
     return confirmDel(`Se eliminará ${names[k]}.`, () => petUpdate({ [k]: (CUR.m[k] || []).filter(x => x.id !== id) }, "Eliminado"));
   }
+});
+
+/* =========================================================
+   PÁGINA WEB: PET SHOP, SERVICIOS Y AJUSTES
+   ========================================================= */
+const ICONOS = (window.DATOS && window.DATOS.iconos) || {};
+const icoW = k => `<svg class="ico" viewBox="0 0 24 24">${ICONOS[k] || ICONOS.paw || ""}</svg>`;
+const sol = n => "S/ " + (+n || 0).toFixed(2);
+const precioTxt = n => !+n ? "Consultar" : "S/ " + (Number.isInteger(+n) ? +n : (+n).toFixed(2));
+const ordenar = l => l.slice().sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || String(a.n).localeCompare(String(b.n)));
+const CATS = ["Alimento", "Farmacia", "Accesorios", "Juguetes", "Higiene"];
+const webBase = () => (A.portal || "").replace(/mi-mascota.*$/, "");
+const SIN_DATOS = col => DB.mode === "firebase" ? `<div class="demo-hint" style="margin:0 0 16px">Aún no hay ${col} en tu base de datos, así que la web muestra los de ejemplo. Puedes <b>cargar los de ejemplo</b> para editarlos, o crear los tuyos desde cero.</div>` : "";
+function fotoField(v) {
+  return `<div class="photo-up"><span class="prev" id="pPrev">${v ? `<img src="${esc(foto(v, 200))}" alt="">` : ico("camera")}</span>
+    <div><label class="btn btn-light btn-sm" for="pFile">${ico("camera")} ${v ? "Cambiar foto" : "Subir foto"}</label><input type="file" id="pFile" accept="image/*">
+    ${v ? `<button type="button" class="btn btn-sm" id="pDel" style="color:var(--red)">Quitar</button>` : ""}<small>Se reduce automáticamente para que cargue rápido.</small></div>
+    <input type="hidden" name="img" value="${esc(v || "")}"></div>`;
+}
+function bindFoto() {
+  $("#pFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const data = await resizeImage(f, 700, .74); $("[name=img]").value = data; $("#pPrev").innerHTML = `<img src="${data}" alt="">`;
+  });
+  $("#pDel")?.addEventListener("click", () => { $("[name=img]").value = ""; $("#pPrev").innerHTML = ico("camera"); });
+}
+async function mover(col, list, id, dir) {
+  const l = ordenar(list), i = l.findIndex(x => x.id === id), j = i + dir;
+  if (j < 0 || j >= l.length) return;
+  [l[i], l[j]] = [l[j], l[i]];
+  await Promise.all(l.map((x, k) => x.orden !== k + 1 ? DB.saveDocCol(col, x.id, { orden: k + 1 }) : null));
+  refresh();
+}
+
+Object.assign(VIEWS, {
+  /* ---------------- PET SHOP ---------------- */
+  async tienda() {
+    const all = ordenar(await DB.listCol("productos")); CUR.list = all;
+    const ag = all.filter(p => p.stock === "agotado").length, of = all.filter(p => +p.old > +p.p).length;
+    $("#view").innerHTML = topBar("Pet Shop", "Lo que cambies aquí se ve al instante en la tienda de la web.",
+      `${!all.length ? `<button class="btn btn-light" data-import="productos">Cargar ejemplos</button>` : ""}<a class="btn btn-light" href="${esc(webBase())}tienda" target="_blank" rel="noopener">${ico("eye")}<span class="hide-m">Ver tienda</span></a><button class="btn btn-pri" data-new-prod>${ico("plus")} Nuevo producto</button>`) + `
+      <div class="stats">
+        <div class="stat"><i>${ico("paw")}</i><div><b>${all.length}</b><span>Productos</span></div></div>
+        <div class="stat"><i>${ico("check")}</i><div><b>${all.filter(p => p.visible !== false && p.stock !== "agotado").length}</b><span>A la venta</span></div></div>
+        <div class="stat"><i>${ico("bell")}</i><div><b>${of}</b><span>En oferta</span></div></div>
+        <div class="stat"><i>${ico("alert")}</i><div><b>${ag}</b><span>Agotados</span></div></div>
+      </div>
+      ${!all.length ? SIN_DATOS("productos") : ""}
+      <div class="card">
+        <div class="card-h"><div class="chips" id="pCats"><button class="chip on" data-pc="">Todos</button>${CATS.map(c => `<button class="chip" data-pc="${c}">${c}</button>`).join("")}</div>
+          <label class="search">${ico("search")}<input id="pSearch" type="search" placeholder="Buscar producto"></label></div>
+        <div class="table-wrap"><table class="ptable"><thead><tr><th></th><th>Producto</th><th>Precio</th><th class="hide-m">Estado</th><th style="text-align:right">Acciones</th></tr></thead><tbody id="pBody"></tbody></table></div>
+      </div>`;
+    let fc = "", q = "";
+    const draw = () => {
+      const l = all.filter(p => (!fc || p.cat === fc) && (p.n + " " + (p.d || "")).toLowerCase().includes(q));
+      $("#pBody").innerHTML = l.length ? l.map(p => `<tr data-prod="${esc(p.id)}" class="${p.visible === false ? "dim" : ""}">
+        <td><span class="thumb">${p.img ? `<img src="${esc(foto(p.img, 120))}" alt="" onerror="this.remove()">` : ico("paw")}</span></td>
+        <td><b>${esc(p.n)}</b><small class="sub">${esc(p.cat)} · ${p.esp === "ambos" ? "Perro y gato" : p.esp === "gato" ? "Gato" : "Perro"}</small></td>
+        <td style="white-space:nowrap"><b>${sol(p.p)}</b>${+p.old > +p.p ? `<br><s class="sub">${sol(p.old)}</s>` : ""}</td>
+        <td class="hide-m"><div class="badges">${p.stock === "agotado" ? `<span class="st bad">Agotado</span>` : `<span class="st ok">Disponible</span>`}${p.visible === false ? `<span class="st">Oculto</span>` : ""}${p.destacado ? `<span class="st info">Destacado</span>` : ""}${p.tag ? `<span class="st warn">${esc(p.tag)}</span>` : ""}</div></td>
+        <td><div class="acts">
+          ${!fc && !q ? `<button class="icon-btn mv" data-mv="-1" title="Subir">▲</button><button class="icon-btn mv" data-mv="1" title="Bajar">▼</button>` : ""}
+          <button class="btn btn-light btn-sm" data-stock>${p.stock === "agotado" ? "Reponer" : "Agotado"}</button>
+          <button class="icon-btn edit" data-edit-prod title="Editar">${ico("edit")}</button>
+          <button class="icon-btn" data-del-prod title="Eliminar">${ico("trash")}</button></div></td></tr>`).join("")
+        : `<tr><td colspan="5" class="empty">${all.length ? "No hay productos con ese filtro." : "Aún no hay productos."}</td></tr>`;
+    };
+    $("#pCats").addEventListener("click", e => { const b = e.target.closest("[data-pc]"); if (!b) return; $$("#pCats .chip").forEach(x => x.classList.remove("on")); b.classList.add("on"); fc = b.dataset.pc; draw(); });
+    $("#pSearch").addEventListener("input", e => { q = e.target.value.trim().toLowerCase(); draw(); });
+    draw();
+  },
+
+  /* ---------------- SERVICIOS ---------------- */
+  async servicios() {
+    const all = ordenar(await DB.listCol("servicios")); CUR.list = all;
+    const row = x => `<div class="li svc-row ${x.visible === false ? "dim" : ""}" data-serv="${esc(x.id)}">
+      <span class="svc-ic">${icoW(x.icon)}</span>
+      <div><b>${esc(x.n)}</b><small>${esc(x.d || "")}</small>
+        <div class="badges" style="margin-top:6px"><span class="st info">${+x.p ? "Desde " + precioTxt(x.p) : "Precio a consultar"}</span>${x.reservable !== false ? `<span class="st ok">Reserva online</span>` : ""}${x.visible === false ? `<span class="st">Oculto</span>` : ""}</div></div>
+      <div class="acts"><button class="icon-btn mv" data-mv="-1" title="Subir">▲</button><button class="icon-btn mv" data-mv="1" title="Bajar">▼</button>
+        <button class="icon-btn edit" data-edit-serv title="Editar">${ico("edit")}</button><button class="icon-btn" data-del-serv title="Eliminar">${ico("trash")}</button></div></div>`;
+    const pri = all.filter(x => x.tipo !== "adicional"), adi = all.filter(x => x.tipo === "adicional");
+    $("#view").innerHTML = topBar("Servicios", "Precios, fotos y qué servicios se pueden reservar en la web.",
+      `${!all.length ? `<button class="btn btn-light" data-import="servicios">Cargar ejemplos</button>` : ""}<a class="btn btn-light" href="${esc(webBase())}servicios" target="_blank" rel="noopener">${ico("eye")}<span class="hide-m">Ver en la web</span></a><button class="btn btn-pri" data-new-serv>${ico("plus")} Nuevo servicio</button>`) + `
+      ${!all.length ? SIN_DATOS("servicios") : ""}
+      <div class="card"><div class="card-h"><h2>${icoW("star")} Servicios principales</h2><small class="sub">Tarjetas grandes con foto (inicio y página Servicios)</small></div>
+        <div class="list">${pri.map(row).join("") || `<p class="empty">Sin servicios principales.</p>`}</div></div>
+      <div class="card"><div class="card-h"><h2>${ico("plus")} Servicios adicionales</h2><small class="sub">Lista con ícono en la página Servicios</small></div>
+        <div class="list">${adi.map(row).join("") || `<p class="empty">Sin servicios adicionales.</p>`}</div></div>`;
+  },
+
+  /* ---------------- AJUSTES ---------------- */
+  async ajustes() {
+    const a = { ...(window.DATOS?.ajustes || {}), ...(await DB.getAjustes()) };
+    $("#view").innerHTML = topBar("Ajustes de la web", "Datos de contacto, horarios y delivery que aparecen en toda la página.",
+      `<a class="btn btn-light" href="${esc(webBase())}" target="_blank" rel="noopener">${ico("eye")} Ver página web</a>`) + `
+      <form class="card" id="ajForm" novalidate>
+        <div class="card-h"><h2>${ico("phone")} Contacto</h2></div>
+        <div class="grid2">
+          ${fld("whatsapp", "WhatsApp (con 51)", a.whatsapp, { req: true, ph: "51987654321" })}
+          ${fld("telefono", "Teléfono como se muestra", a.telefono, { req: true, ph: "+51 987 654 321" })}
+          ${fld("direccion", "Dirección (también mueve el mapa)", a.direccion, { req: true, full: true })}
+          ${fld("correo", "Correo", a.correo, { type: "email" })}
+        </div>
+        <div class="card-h" style="margin-top:10px"><h2>${ico("cal")} Horario de atención</h2></div>
+        <div class="grid3">
+          ${fld("abre", "Abre", a.abre, { type: "time", req: true })}
+          ${fld("cierra", "Cierra (lun a sáb)", a.cierra, { type: "time", req: true })}
+          ${fld("domingoCierra", "Cierra domingo (vacío = cerrado)", a.domingoCierra, { type: "time" })}
+        </div>
+        <p class="sub" style="margin:-4px 0 14px">Los horarios para reservar citas en la web se generan cada 30 minutos dentro de este horario.</p>
+        <div class="card-h" style="margin-top:10px"><h2>${ico("paw")} Delivery del Pet Shop</h2></div>
+        <div class="grid2">
+          ${fld("delivery", "Costo de delivery (S/)", a.delivery, { type: "number", extra: 'min="0" step="0.5"' })}
+          ${fld("deliveryGratis", "Delivery gratis desde (S/) · 0 = nunca", a.deliveryGratis, { type: "number", extra: 'min="0" step="1"' })}
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-pri" type="submit">${ico("check")} Guardar ajustes</button><span class="sub" id="ajMsg"></span></div>
+      </form>`;
+    const pad = t => t && t.length === 4 ? "0" + t : t;   // 9:00 → 09:00 para el selector de hora
+    ["abre", "cierra", "domingoCierra"].forEach(k => { const el = $(`[name=${k}]`); el.value = pad(a[k] || ""); });
+    $("#ajForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = $("#ajForm"), bad = $$("[required]", f).filter(x => !x.value.trim());
+      $$("input", f).forEach(x => x.style.borderColor = ""); if (bad.length) { bad.forEach(x => x.style.borderColor = "var(--red)"); return bad[0].focus(); }
+      const v = n => $(`[name=${n}]`, f).value.trim(), hh = t => t.replace(/^0(\d)/, "$1");
+      const wa = v("whatsapp").replace(/\D/g, "");
+      if (wa.length < 11) { $("[name=whatsapp]").style.borderColor = "var(--red)"; return toast("El WhatsApp debe incluir 51 + 9 dígitos", true); }
+      await safe(async () => {
+        await DB.saveAjustes({ whatsapp: wa, telefono: v("telefono"), direccion: v("direccion"), correo: v("correo"), abre: hh(v("abre")), cierra: hh(v("cierra")),
+          domingoCierra: hh(v("domingoCierra")), delivery: +v("delivery") || 0, deliveryGratis: +v("deliveryGratis") || 0 });
+        toast("Ajustes guardados"); $("#ajMsg").textContent = "Guardado · " + new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+      });
+    });
+  },
+});
+
+/* ---------- Formularios de producto y servicio ---------- */
+function prodForm(p = {}) {
+  const isNew = !p.id;
+  modal(isNew ? "Nuevo producto" : "Editar producto", fotoField(p.img) + `<div class="grid2">
+    ${fld("n", "Nombre del producto", p.n, { req: true, full: true, ph: "Ej. Alimento Perro Adulto 15 kg" })}
+    ${fld("d", "Descripción corta", p.d, { full: true, ph: "Ej. Pollo y arroz, con omega 3" })}
+    ${fld("cat", "Categoría", p.cat || "Alimento", { opts: CATS })}
+    ${fld("esp", "Para", p.esp || "perro", { opts: [["perro", "Perro"], ["gato", "Gato"], ["ambos", "Perro y gato"]] })}
+    ${fld("p", "Precio (S/)", p.p ?? "", { req: true, type: "number", extra: 'min="0" step="0.01" inputmode="decimal"' })}
+    ${fld("old", "Precio antes (para mostrar oferta)", +p.old ? p.old : "", { type: "number", ph: "Opcional", extra: 'min="0" step="0.01" inputmode="decimal"' })}
+    ${fld("tag", "Etiqueta", p.tag || "", { opts: [["", "Ninguna"], ["Oferta", "Oferta"], ["Nuevo", "Nuevo"], ["Recomendado", "Recomendado por el vet"]] })}
+    ${fld("stock", "Stock", p.stock || "disponible", { opts: [["disponible", "Disponible"], ["agotado", "Agotado"]] })}
+    ${fld("visible", "Mostrar en la tienda", p.visible !== false, { type: "checkbox", ph: "Desmarca para ocultarlo sin borrarlo" })}
+    ${fld("destacado", "Destacado en el inicio", !!p.destacado, { type: "checkbox", ph: "Aparece en «Lo más pedido»" })}
+  </div>`, async d => {
+    const pr = Math.round(parseFloat(d.p) * 100) / 100, old = Math.round((parseFloat(d.old) || 0) * 100) / 100;
+    if (!(pr >= 0)) { toast("Precio no válido", true); return false; }
+    if (old && old <= pr) { toast("El «precio antes» debe ser mayor que el precio actual", true); return false; }
+    const data = { ...d, p: pr, old };
+    if (isNew) data.orden = Math.max(0, ...CUR.list.map(x => x.orden || 0)) + 1;
+    await DB.saveDocCol("productos", p.id || null, data); toast(isNew ? "Producto agregado" : "Producto actualizado"); refresh();
+  }, isNew ? "Agregar producto" : "Guardar");
+  bindFoto();
+}
+function servForm(x = {}) {
+  const isNew = !x.id, keys = Object.keys(ICONOS);
+  modal(isNew ? "Nuevo servicio" : "Editar servicio", `
+    <div class="field"><label>Ícono</label><div class="icon-pick">${keys.map(k => `<label><input type="radio" name="icon" value="${k}" ${k === (x.icon || "steth") ? "checked" : ""}><span>${icoW(k)}</span></label>`).join("")}</div></div>
+    <div class="grid2">
+      ${fld("n", "Nombre del servicio", x.n, { req: true, full: true, ph: "Ej. Consulta general" })}
+      ${fld("d", "Descripción", x.d, { type: "textarea", full: true })}
+      ${fld("p", "Precio desde (S/) · 0 = a consultar", x.p ?? 0, { type: "number", extra: 'min="0" step="0.5" inputmode="decimal"' })}
+      ${fld("tipo", "Dónde se muestra", x.tipo || "principal", { opts: [["principal", "Principal (tarjeta con foto)"], ["adicional", "Adicional (lista)"]] })}
+      ${fld("reservable", "Se puede reservar online", x.reservable !== false, { type: "checkbox", ph: "Aparece en la página Reservar cita" })}
+      ${fld("visible", "Mostrar en la web", x.visible !== false, { type: "checkbox" })}
+    </div>
+    <div class="field"><label>Foto (solo para servicios principales)</label></div>${fotoField(x.img)}`, async d => {
+    const data = { ...d, p: Math.round((parseFloat(d.p) || 0) * 100) / 100 };
+    if (isNew) data.orden = Math.max(0, ...CUR.list.map(y => y.orden || 0)) + 1;
+    await DB.saveDocCol("servicios", x.id || null, data); toast(isNew ? "Servicio agregado" : "Servicio actualizado"); refresh();
+  }, isNew ? "Agregar servicio" : "Guardar");
+  bindFoto();
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button"); if (!t || !$("#view").contains(t)) return;
+  if (t.matches("[data-import]")) { const c = t.dataset.import; t.disabled = true; await safe(() => DB.importar(c)); toast("Ejemplos cargados. Ya puedes editarlos."); return refresh(); }
+  if (t.matches("[data-new-prod]")) return prodForm();
+  if (t.matches("[data-new-serv]")) return servForm();
+  const pr = t.closest("[data-prod]"), sv = t.closest("[data-serv]");
+  const item = CUR.list?.find(x => x.id === (pr?.dataset.prod || sv?.dataset.serv)); if (!item) return;
+  const col = pr ? "productos" : "servicios";
+  if (t.matches("[data-mv]")) return safe(() => mover(col, CUR.list, item.id, +t.dataset.mv));
+  if (t.matches("[data-stock]")) { await safe(() => DB.saveDocCol("productos", item.id, { stock: item.stock === "agotado" ? "disponible" : "agotado" })); toast(item.stock === "agotado" ? "Producto disponible otra vez" : "Marcado como agotado"); return refresh(); }
+  if (t.matches("[data-edit-prod]")) return prodForm(item);
+  if (t.matches("[data-edit-serv]")) return servForm(item);
+  if (t.matches("[data-del-prod], [data-del-serv]")) return confirmDel(`Se eliminará <b>${esc(item.n)}</b> de la web.`, async () => { await DB.delDocCol(col, item.id); toast("Eliminado"); refresh(); });
 });

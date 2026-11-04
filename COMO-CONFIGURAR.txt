@@ -28,6 +28,10 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
 7. Índice para "Citas" y "Vacunas" (solo si aparece un error pidiendo índice):
    abre la consola del navegador (F12), haz clic en el enlace que da Firebase y presiona "Crear".
 
+8. Pet Shop y Servicios: entra al panel → Pet Shop → "Cargar ejemplos" (y lo mismo en Servicios).
+   Luego edita precios, fotos y nombres. Mientras estén vacíos, la web muestra los de ejemplo.
+   En Ajustes pon el WhatsApp, dirección, horario y delivery reales.
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 

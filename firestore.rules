@@ -30,6 +30,20 @@ service cloud.firestore {
       allow read, write: if esAdmin();
     }
 
+    // Pet Shop, servicios y ajustes de la web: todos pueden verlos, solo el panel los cambia
+    match /productos/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+    match /servicios/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+    match /ajustes/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+
     // Búsquedas de todas las mascotas (inicio, citas, vacunas) — solo el panel
     match /{ruta=**}/mascotas/{mascota} {
       allow read: if esAdmin();
