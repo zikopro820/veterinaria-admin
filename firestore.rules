@@ -1,0 +1,38 @@
+rules_version = '2';
+// =========================================================
+// REGLAS DE SEGURIDAD — copia todo esto en
+// Firebase > Firestore Database > Reglas > Publicar
+// Cambia los correos por los del personal de la veterinaria.
+// =========================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esAdmin() {
+      return request.auth != null
+        && request.auth.token.email in ['doctor@huellitas.pe', 'recepcion@huellitas.pe'];
+    }
+
+    // Clientes: el público solo puede LEER un cliente si conoce su código exacto
+    // (ahí solo se guarda el nombre; los datos personales van en privado/).
+    // No puede ver la lista de clientes ni modificar nada.
+    match /clientes/{codigo} {
+      allow get: if true;
+      allow list, create, update, delete: if esAdmin();
+
+      match /mascotas/{mascota} {
+        allow read: if true;            // solo dentro del código que ya conoce
+        allow write: if esAdmin();
+      }
+    }
+
+    // Datos privados del dueño (celular, correo, dirección, notas) — solo el panel
+    match /privado/{codigo} {
+      allow read, write: if esAdmin();
+    }
+
+    // Búsquedas de todas las mascotas (inicio, citas, vacunas) — solo el panel
+    match /{ruta=**}/mascotas/{mascota} {
+      allow read: if esAdmin();
+    }
+  }
+}

@@ -1,0 +1,35 @@
+PANEL HUELLITAS — CÓMO CONECTARLO A FIREBASE (gratis)
+=====================================================
+
+Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navegador).
+
+1. Entra a https://console.firebase.google.com  →  "Crear un proyecto"  →  nombre: huellitas  (Analytics: no es necesario).
+
+2. Base de datos:
+   Compilación → Firestore Database → Crear base de datos → ubicación: southamerica-east1 (São Paulo) → "modo de producción".
+
+3. Reglas de seguridad:
+   Firestore Database → pestaña "Reglas" → borra todo, pega el contenido de firestore.rules
+   → cambia los correos por los del personal → Publicar.
+
+4. Usuarios del personal:
+   Compilación → Authentication → Comenzar → "Correo electrónico/contraseña" → Habilitar.
+   Pestaña "Usuarios" → Agregar usuario → correo y contraseña de cada doctor
+   (los MISMOS correos que pusiste en las reglas).
+
+5. Dominios autorizados:
+   Authentication → Configuración → Dominios autorizados → Agregar dominio → zikopro820.github.io
+
+6. Datos de conexión:
+   Ícono de engranaje → Configuración del proyecto → "Tus apps" → ícono web </> → registra la app
+   → copia los valores de firebaseConfig (apiKey, authDomain, projectId, ...).
+   Pégalos en firebase-config.js de ESTE repositorio y también en firebase-config.js del repositorio "veterinaria".
+
+7. Índice para "Citas" y "Vacunas" (solo si aparece un error pidiendo índice):
+   abre la consola del navegador (F12), haz clic en el enlace que da Firebase y presiona "Crear".
+
+Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
+Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
+
+Nota: el apiKey de Firebase NO es secreto (va en todas las webs con Firebase).
+La seguridad la dan las reglas del paso 3 y los usuarios del paso 4.
