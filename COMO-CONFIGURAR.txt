@@ -41,6 +41,13 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
    e) Si al abrir Agenda/Caja/Reportes sale un error de "índice", abre la consola (F12),
       haz clic en el enlace de Firebase y presiona "Crear índice" (tarda 1-2 minutos).
 
+10. ACTUALIZACIÓN (categorías, páginas, producto y domicilio):
+   a) Vuelve a publicar las REGLAS (firestore.rules cambió otra vez).
+   b) Categorías → crea, renombra, ordena u oculta las del Pet Shop y Servicios.
+   c) Servicios → marca "Es a domicilio" en los servicios que se hacen en casa del cliente.
+   d) Páginas y menú → nombres del menú, secciones del inicio, encabezados, pie y páginas nuevas.
+   e) Pet Shop → en cada producto puedes subir hasta 5 fotos extra, descripción completa y detalles.
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 

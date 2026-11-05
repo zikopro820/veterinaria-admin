@@ -277,6 +277,22 @@
     async saveWeb(w) { const f = await F(); await f.setDoc(f.doc(f.db, "ajustes", "web"), w); },
     async citasDeCliente(code) { const f = await F(); const s = await f.getDocs(f.query(f.collection(f.db, "citas"), f.where("code", "==", code))); return s.docs.map(d => ({ ...d.data(), id: d.id })); },
   });
+  /* ---------- Categorías, páginas e info extra de productos ---------- */
+  Object.assign(demo, {
+    async getConf(n) { const c = (load().conf || {})[n]; return c ? clone(c) : null; },
+    async saveConf(n, data) { const d = load(); d.conf = d.conf || {}; d.conf[n] = data; save(d); },
+    async getProdInfo(id) { const x = (load().productos_info || {})[id]; return x ? clone(x) : null; },
+    async saveProdInfo(id, data) { const d = load(); d.productos_info = d.productos_info || {}; d.productos_info[id] = data; save(d); },
+    async delProdInfo(id) { const d = load(); if (d.productos_info) delete d.productos_info[id]; save(d); },
+  });
+  Object.assign(firebase, {
+    async getConf(n) { return this.getDocX("ajustes", n); },
+    async saveConf(n, data) { const f = await F(); await f.setDoc(f.doc(f.db, "ajustes", n), data); },
+    async getProdInfo(id) { return this.getDocX("productos_info", id); },
+    async saveProdInfo(id, data) { const f = await F(); await f.setDoc(f.doc(f.db, "productos_info", id), data); },
+    async delProdInfo(id) { const f = await F(); await f.deleteDoc(f.doc(f.db, "productos_info", id)); },
+  });
+
   // Cuando una cita (o un cambio de pago) es del panel en modo demo también sincroniza la copia del cliente
   demo.pubCita = firebase.pubCita = pubCita;
 

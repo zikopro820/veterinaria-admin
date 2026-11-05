@@ -69,7 +69,8 @@ service cloud.firestore {
         && texto(request.resource.data.dueno, 80) && texto(request.resource.data.celular, 15)
         && texto(request.resource.data.mascota, 60) && texto(request.resource.data.motivo, 300)
         && request.resource.data.keys().hasOnly(['fecha', 'hora', 'k', 'servicioId', 'servicio', 'precio', 'code', 'mascotaId', 'mascota',
-             'especie', 'raza', 'dueno', 'celular', 'motivo', 'origen', 'estado', 'pagado', 'estadoPago', 'creado']));
+             'especie', 'raza', 'dueno', 'celular', 'motivo', 'origen', 'estado', 'pagado', 'estadoPago', 'creado',
+             'domicilio', 'dirCliente', 'distrito', 'referencia', 'ubicacion']));
       allow read, update, delete: if esAdmin();
     }
 
@@ -90,7 +91,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if esAdmin();
     }
-    match /ajustes/{id} {      // ajustes/general (contacto, horarios) y ajustes/web (logo, textos)
+    match /productos_info/{id} {   // galería, descripción y detalles de cada producto
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+    match /ajustes/{id} {      // general, web, categorias y paginas
       allow read: if true;
       allow write: if esAdmin();
     }

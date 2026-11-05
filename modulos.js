@@ -56,9 +56,10 @@ function msgCitaWA(c, aj) {
   if (c.vet) L.push(`• Atiende: ${c.vet}`);
   if (totalDe(c)) L.push(`• Precio: ${S(totalDe(c))}`);
   L.push(`• Pago: ${p.wa}`);
-  if (aj && aj.direccion && !at) L.push(`• Dirección: ${aj.direccion}`);
+  if (c.domicilio && !at) L.push(`• *Atención a domicilio:* ${[c.dirCliente, c.distrito].filter(Boolean).join(", ")}${c.referencia ? " (Ref: " + c.referencia + ")" : ""}`);
+  else if (aj && aj.direccion && !at) L.push(`• Dirección: ${aj.direccion}`);
   if (c.code) L.push("", `Tus citas y pagos con tu código *${c.code}*: ${portalLink(c.code)}`);
-  L.push("", at ? "¡Gracias por confiar en nosotros!" : "Te esperamos 10 minutos antes. Si necesitas reprogramar, responde este mensaje.");
+  L.push("", at ? "¡Gracias por confiar en nosotros!" : c.domicilio ? "Te escribiremos cuando estemos en camino. Si necesitas reprogramar, responde este mensaje." : "Te esperamos 10 minutos antes. Si necesitas reprogramar, responde este mensaje.");
   return L.join("\n");
 }
 
@@ -72,6 +73,7 @@ function citaCard(c, opt = {}) {
       <div class="c-info"><b>${esc(c.mascota || "—")}</b> <span class="c-serv">${esc(c.servicio)}</span>
         <small>${esc(c.dueno || "")}${c.celular ? " · " + esc(c.celular) : ""}${c.vet ? " · " + esc(c.vet) : ""}</small>
         <div class="badges">${at ? `<span class="st ok">Atendida</span>` : ""}<span class="st ${p.cls}">${p.txt}</span>${c.origen === "web" ? `<span class="st info">Web</span>` : ""}${!c.code ? `<span class="st">Sin código</span>` : `<span class="st">${esc(c.code)}</span>`}${!at && pas ? `<span class="st warn">Por cerrar</span>` : ""}</div>
+        ${c.domicilio ? `<p class="c-dom">${ico("home")} <b>A domicilio:</b> ${esc([c.dirCliente, c.distrito].filter(Boolean).join(", "))}${c.referencia ? ` · Ref: ${esc(c.referencia)}` : ""}${c.ubicacion ? ` · <a href="${esc(/^https?:/.test(c.ubicacion) ? c.ubicacion : "https://www.google.com/maps/search/" + encodeURIComponent(c.ubicacion))}" target="_blank" rel="noopener">Ver mapa</a>` : ` · <a href="https://www.google.com/maps/search/${encodeURIComponent([c.dirCliente, c.distrito].join(", "))}" target="_blank" rel="noopener">Ver mapa</a>`}</p>` : ""}
         ${c.motivo ? `<p class="c-mot">“${esc(c.motivo)}”</p>` : ""}</div></div>
     <div class="c-acts">
       <button class="btn btn-wa btn-sm" data-act="wa" title="Enviar por WhatsApp">${ico("wa")}<span>WhatsApp</span></button>
@@ -112,10 +114,15 @@ async function nuevaCita(pre = {}) {
         ${fld("mascota", "Nombre de la mascota", "", { req: true })}
         ${fld("especie", "Especie", "Perro", { opts: ["Perro", "Gato", "Conejo", "Ave", "Otro"] })}
       </div>
-      ${fld("sid", "Servicio", pre.sid || servs[0]?.id, { req: true, opts: servs.map(x => [x.id, x.n + (+x.p ? ` · desde S/ ${x.p}` : "")]) })}
+      ${fld("sid", "Servicio", pre.sid || servs[0]?.id, { req: true, opts: servs.map(x => [x.id, x.n + (+x.p ? ` · desde S/ ${x.p}` : "") + (x.domicilio ? " · a domicilio" : "")]) })}
       ${fld("precio", "Precio (S/)", servs.find(x => x.id === (pre.sid || servs[0]?.id))?.p || 0, { type: "number", extra: 'min="0" step="0.5"' })}
       ${fld("fecha", "Fecha", fecha0, { req: true, type: "date" })}
       <div class="field"><label>Hora *</label><select name="hora" required><option>Cargando…</option></select></div>
+      <div class="full grid2 sub-grid dom-box" id="ncDom">
+        ${fld("dirCliente", "Dirección del cliente (a domicilio)", "", { req: true, full: true, ph: "Calle, número, dpto." })}
+        ${fld("distrito", "Distrito", "", { req: true })}
+        ${fld("referencia", "Referencia", "", { ph: "Opcional" })}
+      </div>
       ${fld("vet", "Veterinario", A.veterinarios[0], { opts: A.veterinarios })}
       ${fld("motivo", "Motivo / notas", "", { ph: "Opcional" })}
       ${fld("adelanto", "Adelanto recibido (S/)", "", { type: "number", ph: "0 si no pagó nada", extra: 'min="0" step="0.5"' })}
@@ -130,7 +137,9 @@ async function nuevaCita(pre = {}) {
       if (d.mid && d.mid !== "__nueva") { const m = PETS.find(x => x.id === d.mid); mid = m.id; mascota = m.nombre; especie = m.especie; }
       else mid = await DB.saveMascota(code, null, { nombre: mascota, especie, raza: "", vacunas: [], historial: [], rec: [] });
     } else if (celular.replace(/\D/g, "").length < 9) { toast("Celular no válido", true); return false; }
+    const dom = !!sv.domicilio;
     const precio = r2(d.precio), base = { fecha: d.fecha, hora: d.hora, servicioId: sv.id || "", servicio: sv.n || "Consulta", precio, total: precio, pagado: 0, pagos: [], estadoPago: "pendiente",
+      domicilio: dom, dirCliente: dom ? d.dirCliente : "", distrito: dom ? d.distrito : "", referencia: dom ? d.referencia : "", ubicacion: "",
       code, mascotaId: mid, mascota, especie, raza: "", dueno, celular, motivo: d.motivo, origen: "panel", estado: "confirmada", vet: d.vet, sede: "" };
     const id = await DB.crearCita(base, cap);
     if (!id) { toast("Ese horario ya se llenó. Elige otro.", true); return false; }
@@ -142,7 +151,7 @@ async function nuevaCita(pre = {}) {
   }, "Guardar cita");
   let PETS = [];
   const F = $("#modalForm"), cli = $("[name=cli]", F), fecha = $("[name=fecha]", F), hora = $("[name=hora]", F);
-  const req = (box, on) => { box.style.display = on ? "" : "none"; $$("[data-req], input, select", box).forEach(x => { if (x.closest(".field") && x.type !== "checkbox") x.required = on && x.name !== "especie"; }); };
+  const req = (box, on) => { box.style.display = on ? "" : "none"; $$("[data-req], input, select", box).forEach(x => { if (x.closest(".field") && x.type !== "checkbox") x.required = on && !["especie", "referencia"].includes(x.name); }); };
   async function onCli() {
     const code = cli.value; req($("#ncNew"), !code);
     if (!code) { $("#ncPetSel").style.display = "none"; req($("#ncPetNew"), true); return; }
@@ -153,8 +162,9 @@ async function nuevaCita(pre = {}) {
   const onPet = () => req($("#ncPetNew"), cli.value && $("[name=mid]", F).value !== "__nueva" ? false : true);
   async function onFecha() { hora.innerHTML = await opcionesHora(fecha.value, aj, pre.hora); }
   cli.addEventListener("change", onCli); $("[name=mid]", F).addEventListener("change", onPet); fecha.addEventListener("change", onFecha);
-  $("[name=sid]", F).addEventListener("change", e => { const s = servs.find(x => x.id === e.target.value); $("[name=precio]", F).value = s ? s.p || 0 : 0; });
-  await onCli(); await onFecha();
+  const onSv = () => { const s = servs.find(x => x.id === $("[name=sid]", F).value); req($("#ncDom"), !!(s && s.domicilio)); };
+  $("[name=sid]", F).addEventListener("change", e => { const s = servs.find(x => x.id === e.target.value); $("[name=precio]", F).value = s ? s.p || 0 : 0; onSv(); });
+  await onCli(); await onFecha(); onSv();
 }
 async function registrarPago(c, monto, metodo, etiqueta) {
   const f = todayISO(), h = nowHM();
@@ -425,6 +435,7 @@ Object.assign(VIEWS, {
 
   /* ---------------- PET SHOP E INVENTARIO ---------------- */
   async tienda() {
+    await cargarCats();
     const [ps, inv] = await Promise.all([DB.listCol("productos"), DB.listCol("inventario")]);
     const im = {}; inv.forEach(x => im[x.id] = x);
     const all = ordenar(ps).map(p => ({ ...p, inv: im[p.id] || null })); CUR.list = all;
@@ -440,18 +451,18 @@ Object.assign(VIEWS, {
       </div>
       ${!all.length ? SIN_DATOS("productos") : ""}
       <div class="card">
-        <div class="card-h"><div class="chips" id="pCats"><button class="chip on" data-pc="">Todos</button>${CATS.map(c => `<button class="chip" data-pc="${c}">${c}</button>`).join("")}<button class="chip" data-pc="__bajo">Stock bajo</button></div>
+        <div class="card-h"><div class="chips" id="pCats"><button class="chip on" data-pc="">Todos</button>${CATP.map(c => `<button class="chip" data-pc="${esc(c.id)}">${esc(c.n)}</button>`).join("")}<button class="chip" data-pc="__bajo">Stock bajo</button></div>
           <label class="search">${ico("search")}<input id="pSearch" type="search" placeholder="Buscar producto"></label></div>
         <div class="table-wrap"><table class="ptable"><thead><tr><th></th><th>Producto</th><th>Precio</th><th class="hide-m">Costo · margen</th><th>Stock</th><th style="text-align:right">Acciones</th></tr></thead><tbody id="pBody"></tbody></table></div>
       </div>`;
     let fc = "", q = "";
     const draw = () => {
-      const l = all.filter(p => (!fc || (fc === "__bajo" ? p.inv && +p.inv.cantidad <= (+p.inv.minimo || 0) : p.cat === fc)) && (p.n + " " + (p.d || "")).toLowerCase().includes(q));
+      const l = all.filter(p => (!fc || (fc === "__bajo" ? p.inv && +p.inv.cantidad <= (+p.inv.minimo || 0) : catId(CATP, p.cat) === fc)) && (p.n + " " + (p.d || "")).toLowerCase().includes(q));
       $("#pBody").innerHTML = l.length ? l.map(p => { const c = p.inv ? +p.inv.cantidad : null, mn = p.inv ? +p.inv.minimo || 0 : 0, cost = p.inv ? +p.inv.costo || 0 : 0;
         const st = c == null ? `<span class="st">Sin control</span>` : c <= 0 ? `<span class="st bad">Agotado</span>` : c <= mn ? `<span class="st warn">${c} und. · bajo</span>` : `<span class="st ok">${c} und.</span>`;
         return `<tr data-prod="${esc(p.id)}" class="${p.visible === false ? "dim" : ""}">
         <td><span class="thumb">${p.img ? `<img src="${esc(foto(p.img, 120))}" alt="" onerror="this.remove()">` : ico("paw")}</span></td>
-        <td><b>${esc(p.n)}</b><small class="sub">${esc(p.cat)}${p.visible === false ? " · Oculto" : ""}${p.destacado ? " · Destacado" : ""}${p.tag ? " · " + esc(p.tag) : ""}</small></td>
+        <td><b>${esc(p.n)}</b><small class="sub">${esc(catName(CATP, p.cat))}${p.visible === false ? " · Oculto" : ""}${p.destacado ? " · Destacado" : ""}${p.tag ? " · " + esc(p.tag) : ""}</small></td>
         <td style="white-space:nowrap"><b>${S(p.p)}</b>${+p.old > +p.p ? `<br><s class="sub">${S(p.old)}</s>` : ""}</td>
         <td class="hide-m" style="white-space:nowrap">${cost ? `${S(cost)}<small class="sub">Ganas ${S(p.p - cost)} (${Math.round((p.p - cost) / p.p * 100)}%)</small>` : `<small class="sub">—</small>`}</td>
         <td>${st}</td>
@@ -697,6 +708,6 @@ document.addEventListener("click", async e => {
   const row = t.closest("[data-prod]");
   if (row && CUR.v === "tienda") { const p = CUR.list.find(x => x.id === row.dataset.prod); if (!p) return;
     if (t.matches("[data-ingreso]")) return ingresoForm(p);
-    if (t.matches("[data-del-prod2]")) return confirmDel(`Se eliminará <b>${esc(p.n)}</b> de la web y del inventario.`, async () => { await DB.delDocCol("productos", p.id); await DB.delDocCol("inventario", p.id).catch(() => {}); toast("Eliminado"); refresh(); });
+    if (t.matches("[data-del-prod2]")) return confirmDel(`Se eliminará <b>${esc(p.n)}</b> de la web y del inventario.`, async () => { await DB.delDocCol("productos", p.id); await DB.delDocCol("inventario", p.id).catch(() => {}); await DB.delProdInfo(p.id).catch(() => {}); toast("Eliminado"); refresh(); });
   }
 });
