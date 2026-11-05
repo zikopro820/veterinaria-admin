@@ -71,14 +71,17 @@ function citaCard(c, opt = {}) {
   return `<div class="cita ${at ? "done" : ""} ${!at && pas ? "late" : ""}" data-cid="${esc(c.id)}">
     <div class="c-top">${opt.fecha ? `<span class="c-hora">${fmtD(c.fecha)} · ${esc(c.hora)}</span>` : `<span class="c-hora">${esc(c.hora)}</span>`}
       <div class="c-info"><b>${esc(c.mascota || "—")}</b> <span class="c-serv">${esc(c.servicio)}</span>
-        <small>${esc(c.dueno || "")}${c.celular ? " · " + esc(c.celular) : ""}${c.vet ? " · " + esc(c.vet) : ""}</small>
-        <div class="badges">${at ? `<span class="st ok">Atendida</span>` : ""}<span class="st ${p.cls}">${p.txt}</span>${c.origen === "web" ? `<span class="st info">Web</span>` : ""}${!c.code ? `<span class="st">Sin código</span>` : `<span class="st">${esc(c.code)}</span>`}${!at && pas ? `<span class="st warn">Por cerrar</span>` : ""}</div>
+        <small>${esc(c.dueno || "")}${c.celular ? " · " + esc(c.celular) : ""}</small>
+        <div class="badges">${(() => { const dd = typeof DOCS !== "undefined" && DOCS.find(x => x.id === c.vetId);
+          if (!c.vet) return at ? "" : `<span class="st warn">Sin doctor asignado</span>`;
+          return `<span class="st doc" style="--dc:${esc((dd && dd.color) || "#5b3df5")}">${esc(c.vet)}</span>` + (!at && dd && ausente(dd, c.fecha) ? `<span class="st bad">Doctor ausente · reasignar</span>` : ""); })()}${at ? `<span class="st ok">Atendida</span>` : ""}<span class="st ${p.cls}">${p.txt}</span>${c.origen === "web" ? `<span class="st info">Web</span>` : ""}${!c.code ? `<span class="st">Sin código</span>` : `<span class="st">${esc(c.code)}</span>`}${!at && pas ? `<span class="st warn">Por cerrar</span>` : ""}</div>
         ${c.domicilio ? `<p class="c-dom">${ico("home")} <b>A domicilio:</b> ${esc([c.dirCliente, c.distrito].filter(Boolean).join(", "))}${c.referencia ? ` · Ref: ${esc(c.referencia)}` : ""}${c.ubicacion ? ` · <a href="${esc(/^https?:/.test(c.ubicacion) ? c.ubicacion : "https://www.google.com/maps/search/" + encodeURIComponent(c.ubicacion))}" target="_blank" rel="noopener">Ver mapa</a>` : ` · <a href="https://www.google.com/maps/search/${encodeURIComponent([c.dirCliente, c.distrito].join(", "))}" target="_blank" rel="noopener">Ver mapa</a>`}</p>` : ""}
         ${c.motivo ? `<p class="c-mot">“${esc(c.motivo)}”</p>` : ""}</div></div>
     <div class="c-acts">
       <button class="btn btn-wa btn-sm" data-act="wa" title="Enviar por WhatsApp">${ico("wa")}<span>WhatsApp</span></button>
       ${p.saldo > 0 || !totalDe(c) ? `<button class="btn btn-light btn-sm" data-act="cobrar">${ic2("cash")}<span>Cobrar</span></button>` : ""}
-      ${!at ? `<button class="btn btn-light btn-sm" data-act="atender">${ico("check")}<span>Atendida</span></button>` : ""}
+      ${!at ? `<button class="btn btn-light btn-sm" data-act="asignar">${ico("users")}<span>${c.vet ? "Doctor" : "Asignar doctor"}</span></button>` : ""}
+      ${!at ? `<button class="btn btn-light btn-sm" data-act="atender">${ico("check")}<span>Atendida</span></button>` : c.code && c.mascotaId ? `<button class="btn btn-light btn-sm" data-act="diag">${ico("edit")}<span>Ficha clínica</span></button>` : ""}
       ${!c.code || !c.mascotaId ? `<button class="btn btn-light btn-sm" data-act="vincular">${ic2("link")}<span>Vincular</span></button>` : c.mascotaId ? `<button class="btn btn-light btn-sm" data-act="ficha">${ico("paw")}<span>Ficha</span></button>` : ""}
       ${!at ? `<button class="icon-btn" data-act="cancelar" title="Cancelar cita">${ico("trash")}</button>` : ""}
     </div></div>`;
@@ -89,14 +92,15 @@ function citaCard(c, opt = {}) {
    ========================================================= */
 async function opcionesHora(fecha, aj, sel) {
   const [cs, ts] = await Promise.all([DB.rango("citas", fecha, fecha), DB.turnosRango(fecha, fecha)]);
-  const cap = Math.max(1, +aj.capacidad || 1), occ = {};
+  await cargarDocs();
+  const occ = {};
   ts.forEach(t => occ[t.hora] = (occ[t.hora] || 0) + 1);
   const hoy = fecha === todayISO(), ahora = aMin(nowHM());
-  const hs = horasDia(fecha, aj);
-  const libres = hs.filter(h => (occ[h] || 0) < cap && !(hoy && aMin(h) < ahora - 30));
+  const hs = horasDia(fecha, aj), cap = h => capSlot(fecha, h, aj);
+  const libres = hs.filter(h => (occ[h] || 0) < cap(h) && !(hoy && aMin(h) < ahora - 30));
   if (!hs.length) return `<option value="">Día sin atención (puedes cambiar el horario en Ajustes)</option>`;
   if (!libres.length) return `<option value="">No hay horarios libres este día</option>`;
-  return libres.map(h => `<option value="${h}" ${h === sel ? "selected" : ""}>${h} h${cap > 1 ? ` · ${cap - (occ[h] || 0)} libre(s)` : ""}</option>`).join("");
+  return libres.map(h => `<option value="${h}" ${h === sel ? "selected" : ""}>${h} h · ${cap(h) - (occ[h] || 0)} doctor(es) libre(s)</option>`).join("");
 }
 async function nuevaCita(pre = {}) {
   const [aj, cls, svs] = await Promise.all([cargarAjustes(), DB.listClientes(), DB.listCol("servicios")]);
@@ -123,7 +127,7 @@ async function nuevaCita(pre = {}) {
         ${fld("distrito", "Distrito", "", { req: true })}
         ${fld("referencia", "Referencia", "", { ph: "Opcional" })}
       </div>
-      ${fld("vet", "Veterinario", A.veterinarios[0], { opts: A.veterinarios })}
+      <div class="field"><label>Doctor</label><select name="vetId"><option value="">Asignar después</option></select></div>
       ${fld("motivo", "Motivo / notas", "", { ph: "Opcional" })}
       ${fld("adelanto", "Adelanto recibido (S/)", "", { type: "number", ph: "0 si no pagó nada", extra: 'min="0" step="0.5"' })}
       ${fld("metodo", "Forma de pago del adelanto", "Efectivo", { opts: MET })}
@@ -140,7 +144,7 @@ async function nuevaCita(pre = {}) {
     const dom = !!sv.domicilio;
     const precio = r2(d.precio), base = { fecha: d.fecha, hora: d.hora, servicioId: sv.id || "", servicio: sv.n || "Consulta", precio, total: precio, pagado: 0, pagos: [], estadoPago: "pendiente",
       domicilio: dom, dirCliente: dom ? d.dirCliente : "", distrito: dom ? d.distrito : "", referencia: dom ? d.referencia : "", ubicacion: "",
-      code, mascotaId: mid, mascota, especie, raza: "", dueno, celular, motivo: d.motivo, origen: "panel", estado: "confirmada", vet: d.vet, sede: "" };
+      code, mascotaId: mid, mascota, especie, raza: "", dueno, celular, motivo: d.motivo, origen: "panel", estado: "confirmada", vetId: d.vetId || "", vet: (DOCS.find(x => x.id === d.vetId) || {}).n || "", sede: "" };
     const id = await DB.crearCita(base, cap);
     if (!id) { toast("Ese horario ya se llenó. Elige otro.", true); return false; }
     let c = { ...base, id };
@@ -160,7 +164,14 @@ async function nuevaCita(pre = {}) {
     onPet();
   }
   const onPet = () => req($("#ncPetNew"), cli.value && $("[name=mid]", F).value !== "__nueva" ? false : true);
-  async function onFecha() { hora.innerHTML = await opcionesHora(fecha.value, aj, pre.hora); }
+  async function onHora() {
+    const cs = await DB.rango("citas", fecha.value, fecha.value), sel = $("[name=vetId]", F);
+    const l = hora.value ? estadoDocs(fecha.value, hora.value, aj, cs) : [];
+    sel.innerHTML = `<option value="">Asignar después</option>` + l.map(x => `<option value="${esc(x.d.id)}" ${x.est !== "libre" ? "disabled" : ""}>${esc(x.d.n)} · ${EST_TXT[x.est][1].toLowerCase()}</option>`).join("");
+    const libre = l.find(x => x.est === "libre"); if (libre) sel.value = libre.d.id;
+  }
+  async function onFecha() { hora.innerHTML = await opcionesHora(fecha.value, aj, pre.hora); await onHora(); }
+  hora.addEventListener("change", onHora);
   cli.addEventListener("change", onCli); $("[name=mid]", F).addEventListener("change", onPet); fecha.addEventListener("change", onFecha);
   const onSv = () => { const s = servs.find(x => x.id === $("[name=sid]", F).value); req($("#ncDom"), !!(s && s.domicilio)); };
   $("[name=sid]", F).addEventListener("change", e => { const s = servs.find(x => x.id === e.target.value); $("[name=precio]", F).value = s ? s.p || 0 : 0; onSv(); });
@@ -177,11 +188,14 @@ async function registrarPago(c, monto, metodo, etiqueta) {
   if (nc.estado === "atendida") await syncHistorial(nc);
   return nc;
 }
-async function syncHistorial(c) {   // actualiza lo pagado en el historial de la mascota
+async function syncHistorial(c, extra = {}) {   // crea o actualiza la atención en el historial de la mascota
   if (!c.code || !c.mascotaId) return;
   const m = await DB.getMascota(c.code, c.mascotaId); if (!m) return;
-  const his = (m.historial || []).map(x => x.citaId === c.id ? { ...x, monto: totalDe(c), pagado: +c.pagado || 0, metodo: [...new Set((c.pagos || []).map(p => p.metodo))].join(" + ") } : x);
-  await DB.saveMascota(c.code, c.mascotaId, { historial: his });
+  const datos = { monto: totalDe(c), pagado: +c.pagado || 0, metodo: [...new Set((c.pagos || []).map(p => p.metodo))].join(" + ") };
+  const his = m.historial || [], i = his.findIndex(x => x.citaId === c.id);
+  if (i >= 0) his[i] = { ...his[i], ...datos, ...extra };
+  else his.push({ id: uid(), f: c.fecha, hora: c.hora, t: c.servicio, d: "", vet: c.vet || "", peso: "", citaId: c.id, ...datos, ...extra });
+  await DB.saveMascota(c.code, c.mascotaId, { historial: his, ...(extra.peso ? { peso: extra.peso } : {}) });
 }
 async function cobrar(c) {
   const aj = await cargarAjustes(), p = pagoInfo(c);
@@ -192,13 +206,14 @@ async function cobrar(c) {
       ${fld("monto", "Monto que paga ahora (S/)", p.saldo || "", { req: true, type: "number", extra: 'min="0.1" step="0.1"' })}
       ${fld("metodo", "Forma de pago", "Efectivo", { opts: MET })}
       ${fld("enviar", "Enviar el estado de pago por WhatsApp", true, { type: "checkbox" })}
+      ${c.estado !== "atendida" && c.fecha <= todayISO() ? fld("atender", "Después de cobrar, abrir la ficha clínica para guardarla en el historial", true, { type: "checkbox", full: true, ph: "Doctor, diagnóstico y medicamentos" }) : ""}
     </div>`, async d => {
     let nc = { ...c };
     if (r2(d.total) !== totalDe(c)) { const t = r2(d.total); await DB.guardarCita(c.id, { total: t, estadoPago: t > 0 && (+c.pagado || 0) >= t ? "pagado" : (+c.pagado || 0) > 0 ? "adelanto" : "pendiente" }); nc.total = t; }
     const m = r2(d.monto); if (!(m > 0)) { toast("Monto no válido", true); return false; }
     nc = await registrarPago(nc, m, d.metodo, pagoInfo(nc).saldo <= m ? "Pago" : "Adelanto");
     toast("Pago registrado en caja"); if (d.enviar) openWA(c.celular, msgCitaWA(nc, aj));
-    refresh();
+    if (d.atender) setTimeout(() => fichaAtencion(nc, "atender"), 350); else refresh();
   }, "Registrar pago");
 }
 async function atender(c) {
@@ -217,16 +232,22 @@ async function atender(c) {
     const t = r2(d.total);
     await DB.guardarCita(c.id, { total: t, estado: "atendida", vet: d.vet, atendida: new Date().toISOString() });
     let nc = { ...c, total: t, estado: "atendida", vet: d.vet };
-    if (c.code && c.mascotaId) {
-      const m = await DB.getMascota(c.code, c.mascotaId);
-      if (m) await DB.saveMascota(c.code, c.mascotaId, { historial: [...(m.historial || []), { id: uid(), f: c.fecha, hora: c.hora, t: c.servicio, d: d.d, vet: d.vet, peso: d.peso, monto: t, pagado: +c.pagado || 0, metodo: [...new Set((c.pagos || []).map(x => x.metodo))].join(" + "), citaId: c.id }], ...(d.peso ? { peso: d.peso } : {}) });
-    }
+    await syncHistorial(nc, { d: d.d, vet: d.vet, peso: d.peso });
     if (+d.monto > 0) nc = await registrarPago(nc, r2(d.monto), d.metodo, "Pago");
     else { nc.estadoPago = t > 0 && (+c.pagado || 0) >= t ? "pagado" : (+c.pagado || 0) > 0 ? "adelanto" : "pendiente"; await DB.guardarCita(c.id, { estadoPago: nc.estadoPago }); }
     toast(pagoInfo(nc).saldo > 0 ? "Atendida · queda saldo pendiente" : "Atendida y pagada");
     if (d.enviar) openWA(c.celular, msgCitaWA(nc, aj));
     refresh();
   }, "Guardar atención");
+}
+async function diagnostico(c) {   // completar o corregir lo que verá el cliente en su historial
+  const m = await DB.getMascota(c.code, c.mascotaId), h = ((m && m.historial) || []).find(x => x.citaId === c.id) || {};
+  modal("Diagnóstico de la atención", `<p class="sub" style="margin-bottom:12px">${esc(c.mascota)} · ${esc(c.servicio)} · ${fmtD(c.fecha)} ${esc(c.hora)} h</p><div class="grid2">
+    ${fld("d", "Diagnóstico, tratamiento e indicaciones (lo verá el cliente)", h.d || "", { type: "textarea", full: true })}
+    ${fld("vet", "Atendido por", h.vet || c.vet || A.veterinarios[0], { opts: A.veterinarios })}
+    ${fld("peso", "Peso del día", h.peso || "", { ph: "Ej. 12.4 kg" })}</div>`, async d => {
+    await syncHistorial(c, { d: d.d, vet: d.vet, peso: d.peso }); toast("Historial actualizado");
+  }, "Guardar");
 }
 async function vincular(c) {
   const cls = (await DB.listClientes()).sort((a, b) => a.dueno.localeCompare(b.dueno));
@@ -241,6 +262,7 @@ async function vincular(c) {
     if (code === "__nuevo") { code = await DB.nuevoCodigo(); await DB.saveCliente(code, { dueno: c.dueno, celular: c.celular, email: "", direccion: "", notas: "Creado desde una cita web" }); mid = "__nueva"; }
     if (!mid || mid === "__nueva") mid = await DB.saveMascota(code, null, { nombre: c.mascota, especie: c.especie || "Perro", raza: c.raza || "", vacunas: [], historial: [], rec: [] });
     await DB.guardarCita(c.id, { code, mascotaId: mid });
+    if (c.estado === "atendida") await syncHistorial({ ...c, code, mascotaId: mid });
     toast("Cita vinculada · Código " + code);
     if (d.enviar) { const cl = await DB.getCliente(code);
       openWA(cl.celular, `Hola ${cl.dueno.split(" ")[0]}, te saluda *${NOMBRE_V}*.\n\nTu código de cliente es: *${code}*\n\nCon él puedes ver tus citas, pagos, vacunas e historial de ${c.mascota} aquí:\n${portalLink(code)}`); }
@@ -267,7 +289,7 @@ let AG = { modo: "dia", fecha: todayISO() };
 Object.assign(VIEWS, {
   /* ---------------- INICIO ---------------- */
   async inicio() {
-    await cargarMarca();
+    await cargarMarca(); await cargarDocs();
     const hoy = todayISO();
     const [aj, cl, ms, citasHoy, movs, prox, prods, inv] = await Promise.all([cargarAjustes(), DB.listClientes(), DB.allMascotas(), DB.rango("citas", hoy, hoy),
       DB.rango("movimientos", hoy, hoy), DB.rango("citas", addDays(hoy, -60), addDays(hoy, 60)), DB.listCol("productos"), DB.listCol("inventario")]);
@@ -290,6 +312,8 @@ Object.assign(VIEWS, {
         <div class="card"><div class="card-h"><h2>${ico("cal")} Citas de hoy</h2><button class="btn btn-light btn-sm" data-goto="agenda">Ver agenda</button></div>
           <div class="citas">${citasHoy.map(c => citaCard(c)).join("") || `<p class="empty">No hay citas hoy.</p>`}</div></div>
         <div>
+          ${DOCS.length ? `<div class="card"><div class="card-h"><h2>${ico("users")} Doctores hoy</h2><button class="btn btn-light btn-sm" data-goto="doctores">Gestionar</button></div><div class="list">${docsActivos().map(d => { const aus = ausente(d, hoy), tr = (d.dias || []).includes(toD(hoy).getDay()), n = citasHoy.filter(c => c.vetId === d.id).length;
+            return `<div class="li">${avatarDoc(d)}<div><b>${esc(d.n)}</b><small>${esc(d.esp || "")}${tr && !aus ? ` · ${n} cita${n === 1 ? "" : "s"} hoy` : ""}</small></div><span class="st ${aus ? "dark" : tr ? "ok" : ""}">${aus ? "No vino" : tr ? "Presente" : "Descanso"}</span></div>`; }).join("")}</div></div>` : ""}
           ${porCobrar.length ? `<div class="card"><div class="card-h"><h2>${ic2("cash")} Saldos por cobrar</h2></div><div class="list">${porCobrar.slice(0, 5).map(c => `<div class="li"><div><b>${esc(c.mascota)} · ${esc(c.dueno)}</b><small>${esc(c.servicio)} · ${fmtD(c.fecha)}</small></div><span class="st warn">${S(pagoInfo(c).saldo)}</span></div>`).join("")}</div></div>` : ""}
           <div class="card"><div class="card-h"><h2>${ic2("box")} Stock bajo</h2><button class="btn btn-light btn-sm" data-goto="tienda">Inventario</button></div>
             <div class="list">${bajos.slice(0, 6).map(p => `<div class="li"><div><b>${esc(p.n)}</b><small>Mínimo ${+p.inv.minimo || 0}</small></div><span class="st ${+p.inv.cantidad <= 0 ? "bad" : "warn"}">${+p.inv.cantidad <= 0 ? "Agotado" : p.inv.cantidad + " und."}</span></div>`).join("") || `<p class="empty">Todo con stock suficiente.</p>`}</div></div>
@@ -300,7 +324,8 @@ Object.assign(VIEWS, {
 
   /* ---------------- AGENDA ---------------- */
   async agenda() {
-    const aj = await cargarAjustes(), cap = Math.max(1, +aj.capacidad || 1), f = AG.fecha;
+    await cargarDocs();
+    const aj = await cargarAjustes(), cap = capMax(aj), f = AG.fecha, capH = (d, h) => capSlot(d, h, aj);
     let a = f, b = f;
     if (AG.modo === "semana") { a = lunes(f); b = addDays(a, 6); }
     if (AG.modo === "mes") { const d = toD(f); a = lunes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`); b = addDays(a, 41); }
@@ -310,8 +335,8 @@ Object.assign(VIEWS, {
     Object.values(porDia).forEach(l => l.sort((x, y) => x.hora.localeCompare(y.hora)));
     const bloq = {}; ts.filter(t => t.bloqueo).forEach(t => { const k = t.fecha + "_" + t.hora; (bloq[k] = bloq[k] || []).push(t); });
     const resumen = d => { const hs = horasDia(d, aj), l = porDia[d] || []; let libres = 0;
-      hs.forEach(h => { const o = l.filter(c => c.hora === h).length + (bloq[d + "_" + h] || []).length; libres += Math.max(cap - o, 0); });
-      return { citas: l.length, libres, total: hs.length * cap, cerrado: !hs.length }; };
+      let total = 0; hs.forEach(h => { const k = capH(d, h), o = l.filter(c => c.hora === h).length + (bloq[d + "_" + h] || []).length; total += k; libres += Math.max(k - o, 0); });
+      return { citas: l.length, libres, total, cerrado: !hs.length }; };
     const titulo = AG.modo === "dia" ? largo(f).replace(/^./, x => x.toUpperCase()) + " " + toD(f).getFullYear()
       : AG.modo === "semana" ? `Semana del ${toD(a).getDate()} ${MES[toD(a).getMonth()]} al ${toD(b).getDate()} ${MES[toD(b).getMonth()]}`
       : MESES_L[toD(f).getMonth()].replace(/^./, x => x.toUpperCase()) + " " + toD(f).getFullYear();
@@ -319,15 +344,18 @@ Object.assign(VIEWS, {
     if (AG.modo === "dia") {
       const hs = horasDia(f, aj), l = porDia[f] || [], horas = [...new Set([...hs, ...l.map(c => c.hora)])].sort();
       const r = resumen(f), cob = l.reduce((s, c) => s + pagoInfo(c).saldo, 0);
-      body = `<div class="day-sum"><span><b>${r.citas}</b> citas</span><span><b>${r.libres}</b> lugares libres</span><span><b>${S(cob)}</b> por cobrar</span>${cap > 1 ? `<span><b>${cap}</b> citas por horario</span>` : ""}</div>` +
+      const docsDia = docsActivos().map(d => ({ d, aus: ausente(d, f), trab: (d.dias || []).includes(toD(f).getDay()), n: l.filter(c => c.vetId === d.id).length }));
+      body = `<div class="day-sum"><span><b>${r.citas}</b> citas</span><span><b>${r.libres}</b> lugares libres</span><span><b>${S(cob)}</b> por cobrar</span>${l.filter(c => !c.vet && c.estado !== "atendida").length ? `<span class="warn"><b>${l.filter(c => !c.vet && c.estado !== "atendida").length}</b> sin doctor</span>` : ""}</div>` +
+        (docsDia.length ? `<div class="doc-strip">${docsDia.map(x => `<span class="ds ${x.aus ? "aus" : !x.trab ? "off" : ""}">${avatarDoc(x.d)}<span><b>${esc(x.d.n)}</b><small>${x.aus ? "No vino" : !x.trab ? "No trabaja hoy" : `${esc(x.d.desde)}–${esc(x.d.hasta)} · ${x.n} cita${x.n === 1 ? "" : "s"}`}</small></span></span>`).join("")}<button class="btn btn-sm ghost" data-goto="doctores">${ico("edit")} Doctores</button></div>` : "") +
         (!horas.length ? `<p class="empty">Este día no hay atención. Puedes cambiar el horario en Ajustes.</p>` :
         `<div class="slots-day">${horas.map(h => {
-          const cc = l.filter(c => c.hora === h), bl = bloq[f + "_" + h] || [], occ = cc.length + bl.length, lib = Math.max(cap - occ, 0);
+          const cc = l.filter(c => c.hora === h), bl = bloq[f + "_" + h] || [], occ = cc.length + bl.length, lib = Math.max(capH(f, h) - occ, 0);
+          const libresN = docsActivos().filter(d => trabaja(d, f, h, aj) && !cc.some(c => c.vetId === d.id)).map(d => d.n.replace(/^(Dra?\.)\s*/i, "").split(" ")[0]);
           const pas = f < todayISO() || (f === todayISO() && aMin(h) < aMin(nowHM()) - 30);
           return `<div class="srow ${pas ? "past" : ""}"><div class="s-h">${h}</div><div class="s-body">
             ${cc.map(c => citaCard(c)).join("")}
             ${bl.length ? `<div class="blk">${ic2("lock")} Bloqueado${bl[0].motivo ? " · " + esc(bl[0].motivo) : ""}<button class="btn btn-sm" data-unblock="${h}">${ic2("unlock")} Desbloquear</button></div>` : ""}
-            ${!bl.length && hs.includes(h) ? `<div class="free ${lib ? "" : "full"}"><span>${lib ? `${lib} libre${lib > 1 ? "s" : ""}` : "Lleno"}</span>${lib && !pas ? `<button class="btn btn-light btn-sm" data-new-at="${h}">${ico("plus")} Cita</button>${!cc.length ? `<button class="btn btn-sm ghost" data-block="${h}">${ic2("lock")} Bloquear</button>` : ""}` : ""}</div>` : ""}
+            ${!bl.length && hs.includes(h) ? `<div class="free ${lib ? "" : "full"}"><span>${lib ? `${lib} libre${lib > 1 ? "s" : ""}` : "Lleno"}</span>${lib && DOCS.length && libresN.length ? `<small class="free-docs">${esc(libresN.join(", "))}</small>` : ""}${lib && !pas ? `<button class="btn btn-light btn-sm" data-new-at="${h}">${ico("plus")} Cita</button>${!cc.length ? `<button class="btn btn-sm ghost" data-block="${h}">${ic2("lock")} Bloquear</button>` : ""}` : ""}</div>` : ""}
           </div></div>`; }).join("")}</div>`);
     } else if (AG.modo === "semana") {
       body = `<div class="week">${[0, 1, 2, 3, 4, 5, 6].map(i => { const d = addDays(a, i), r = resumen(d), l = porDia[d] || [];
@@ -339,7 +367,7 @@ Object.assign(VIEWS, {
         const d = addDays(a, i), r = resumen(d), out = toD(d).getMonth() !== mes, pct = r.total ? Math.round((1 - r.libres / r.total) * 100) : 0;
         return `<button class="mcell ${out ? "out" : ""} ${d === todayISO() ? "today" : ""} ${r.cerrado ? "closed" : ""}" data-dia="${d}"><b>${toD(d).getDate()}</b>${r.citas ? `<span class="mc-n">${r.citas} cita${r.citas > 1 ? "s" : ""}</span>` : ""}${!r.cerrado ? `<small>${r.libres} libres</small><i class="bar"><i style="width:${pct}%"></i></i>` : `<small>Cerrado</small>`}</button>`; }).join("")}</div></div>`;
     }
-    $("#view").innerHTML = topBar("Agenda", `Horarios libres y ocupados · ${cap} cita${cap > 1 ? "s" : ""} por horario`,
+    $("#view").innerHTML = topBar("Agenda", DOCS.length ? `Horarios libres y ocupados · ${docsActivos().length} doctor(es)` : `Horarios libres y ocupados · ${cap} cita${cap > 1 ? "s" : ""} por horario`,
       `<button class="btn btn-pri" data-act="nueva">${ico("plus")} Nueva cita</button>`) + `
       <div class="card ag-card">
         <div class="ag-bar">
@@ -669,6 +697,7 @@ document.addEventListener("click", async e => {
     if (act === "atender") return atender(c);
     if (act === "vincular") return vincular(c);
     if (act === "cancelar") return cancelarCita(c);
+    if (act === "diag") return diagnostico(c);
     if (act === "ficha") return go("mascota", { code: c.code, id: c.mascotaId });
   }
   if (t.matches("[data-send-citas]")) {

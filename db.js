@@ -46,7 +46,7 @@
       const fecha = iso(dias), id = `${fecha}_${hora}_1`;
       d.turnos[id] = { fecha, hora, k: 1, creado: now() };
       d.citas[id] = { fecha, hora, k: 1, servicioId: "", servicio, precio, total: precio, pagado, estadoPago: pagado >= precio ? "pagado" : pagado > 0 ? "adelanto" : "pendiente",
-        pagos: pagado ? [{ monto: pagado, metodo: "Yape", fecha: iso(0), hora: hhmm() }] : [], code, mascotaId: mid, mascota, especie, raza: "", dueno, celular: cel, motivo: "", origen, estado: "confirmada", vet: "Dra. Carla Méndez", creado: now() };
+        pagos: pagado ? [{ monto: pagado, metodo: "Yape", fecha: iso(0), hora: hhmm() }] : [], code, mascotaId: mid, mascota, especie, raza: "", dueno, celular: cel, motivo: "", origen, estado: "confirmada", vet: "Dra. Carla Méndez", vetId: "carla", creado: now() };
       if (pagado) { const mid2 = uid(); d.movimientos[mid2] = { fecha: iso(0), hora: hhmm(), tipo: "servicio", concepto: `Adelanto · ${servicio} – ${mascota}`, total: pagado, metodo: "Yape", items: [{ tipo: "servicio", n: servicio, q: 1, p: pagado }], citaId: id, code, cliente: dueno, anulado: false, creado: now() }; }
     };
     add(0, "10:00", "HV-2048", "max", "Max", "Perro", "Jorge Ramos", "912345678", "Consulta general", 50, 0, "panel");

@@ -10,7 +10,7 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
 
 3. Reglas de seguridad:
    Firestore Database → pestaña "Reglas" → borra todo, pega el contenido de firestore.rules
-   → cambia los correos por los del personal → Publicar..
+   → cambia los correos por los del personal → Publicar.
 
 4. Usuarios del personal:
    Compilación → Authentication → Comenzar → "Correo electrónico/contraseña" → Habilitar.
@@ -47,6 +47,13 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
    c) Servicios → marca "Es a domicilio" en los servicios que se hacen en casa del cliente.
    d) Páginas y menú → nombres del menú, secciones del inicio, encabezados, pie y páginas nuevas.
    e) Pet Shop → en cada producto puedes subir hasta 5 fotos extra, descripción completa y detalles.
+
+11. ACTUALIZACIÓN (doctores y ficha clínica):
+   a) Doctores → revisa los doctores, sus días y horario. Usa "No vino hoy" o "Ausencia".
+      La web ofrece tantas citas por horario como doctores disponibles.
+   b) Agenda → en cada cita usa "Asignar doctor" (verás disponibles, ocupados y ausentes).
+   c) Al atender, la ficha pide doctor y diagnóstico; agrega medicamentos, indicaciones,
+      peso, temperatura y próximo control. Todo pasa al historial y a Mi Mascota.
 
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
