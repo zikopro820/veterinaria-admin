@@ -23,10 +23,22 @@ async function cargarPaginas() {
 }
 const ICON_PICK = (name, val) => `<div class="field full"><label>Ícono</label><div class="icon-pick">${Object.keys(ICONOS).map(k => `<label><input type="radio" name="${name}" value="${k}" ${k === val ? "checked" : ""}><span>${icoW(k)}</span></label>`).join("")}</div></div>`;
 
+// Servicios cargados antes de existir las categorías: se les asigna la categoría y "a domicilio" de la plantilla
+async function migrarServicios() {
+  const ss = await DB.listCol("servicios"), D = window.DATOS.servicios; let n = 0;
+  for (const x of ss) {
+    const base = D.find(y => y.id === x.id), patch = {};
+    if (!x.cat) patch.cat = base ? base.cat : (CATSV[0] || {}).id;
+    if (x.domicilio === undefined) patch.domicilio = base ? !!base.domicilio : false;
+    if (Object.keys(patch).length) { await DB.saveDocCol("servicios", x.id, patch); n++; }
+  }
+  return n;
+}
+
 Object.assign(VIEWS, {
   /* ---------------- CATEGORÍAS ---------------- */
   async categorias() {
-    await cargarCats();
+    await cargarCats(); await migrarServicios();
     const [ps, ss] = await Promise.all([DB.listCol("productos"), DB.listCol("servicios")]);
     const prods = ps.length ? ps : window.DATOS.productos, servs = ss.length ? ss : window.DATOS.servicios;
     const cuenta = (tipo, id) => (tipo === "productos" ? prods : servs).filter(x => catId(tipo === "productos" ? CATP : CATSV, x.cat) === id).length;
@@ -197,7 +209,7 @@ servForm = async function (x = {}) {   // eslint-disable-line no-global-assign
 // la lista de servicios muestra su categoría y si es a domicilio
 const _serviciosVista = VIEWS.servicios;
 VIEWS.servicios = async () => {
-  await cargarCats(); await _serviciosVista();
+  await cargarCats(); await migrarServicios(); await _serviciosVista();
   for (const r of $$("[data-serv]")) { const s = CUR.list.find(x => x.id === r.dataset.serv); if (!s) continue;
     const b = $(".badges", r); if (b) b.insertAdjacentHTML("afterbegin", `<span class="st">${esc(catName(CATSV, s.cat))}</span>${s.domicilio ? `<span class="st warn">A domicilio</span>` : ""}`); }
 };

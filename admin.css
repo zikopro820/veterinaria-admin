@@ -419,3 +419,19 @@ tr.dim td, .li.dim { opacity: .55; }
 .dom-box { background: #fff7f4; border-radius: 14px; padding: 12px 12px 0; margin-bottom: 14px; }
 @media (max-width: 860px) { .two-col.even { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .cat-row { flex-wrap: wrap; } .cat-row .acts { width: 100%; justify-content: flex-end; } .menu-row .acts .mv { display: inline-grid; } }
+
+/* ---------- Menú lateral en pantallas bajas (laptops) ---------- */
+.side { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+.side::-webkit-scrollbar { width: 6px; }
+.side::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); border-radius: 9px; }
+.side nav { flex-shrink: 0; }
+.side-foot { flex-shrink: 0; padding-bottom: 6px; }
+@media (max-height: 820px) and (min-width: 861px) {
+  .side { padding: 16px 12px; }
+  .side .brand { margin-bottom: 16px; }
+  .side nav { gap: 2px; }
+  .side nav button { padding: 8px 12px; font-size: .9rem; }
+  .nav-label { margin: 10px 12px 2px; }
+  .side-foot { padding-top: 10px; font-size: .76rem; }
+  .side-foot .btn { margin-top: 8px; padding: 7px; }
+}
