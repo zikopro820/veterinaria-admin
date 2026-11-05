@@ -1,6 +1,6 @@
 rules_version = '2';
 // =========================================================
-// REGLAS DE SEGURIDAD — copia todo esto en
+// REGLAS DE SEGURIDAD — copia TODO esto en
 // Firebase > Firestore Database > Reglas > Publicar
 // Cambia los correos por los del personal de la veterinaria.
 // =========================================================
@@ -11,10 +11,16 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email in ['doctor@huellitas.pe', 'recepcion@huellitas.pe'];
     }
+    function ajustes() { return /databases/$(database)/documents/ajustes/general; }
+    // Cuántas citas se atienden a la misma hora (Ajustes del panel)
+    function capacidad() {
+      return exists(ajustes()) ? get(ajustes()).data.get('capacidad', 1) : 1;
+    }
+    function texto(v, max) { return v is string && v.size() <= max; }
 
-    // Clientes: el público solo puede LEER un cliente si conoce su código exacto
+    // ---------- Clientes ----------
+    // El público solo puede LEER un cliente si conoce su código exacto
     // (ahí solo se guarda el nombre; los datos personales van en privado/).
-    // No puede ver la lista de clientes ni modificar nada.
     match /clientes/{codigo} {
       allow get: if true;
       allow list, create, update, delete: if esAdmin();
@@ -23,6 +29,15 @@ service cloud.firestore {
         allow read: if true;            // solo dentro del código que ya conoce
         allow write: if esAdmin();
       }
+      // Copia de sus citas para "Mi Mascota" (fecha, hora, servicio y estado de pago)
+      match /agenda/{cita} {
+        allow read: if true;
+        allow create: if esAdmin() || (
+          existsAfter(/databases/$(database)/documents/citas/$(cita))
+          && request.resource.data.keys().hasOnly(['fecha', 'hora', 'servicio', 'precio', 'mascota', 'mascotaId', 'total', 'pagado', 'estadoPago', 'estado', 'creado'])
+          && request.resource.data.pagado == 0 && request.resource.data.estado == 'confirmada');
+        allow update, delete: if esAdmin();
+      }
     }
 
     // Datos privados del dueño (celular, correo, dirección, notas) — solo el panel
@@ -30,7 +45,43 @@ service cloud.firestore {
       allow read, write: if esAdmin();
     }
 
-    // Pet Shop, servicios y ajustes de la web: todos pueden verlos, solo el panel los cambia
+    // ---------- Agenda ----------
+    // turnos: un documento por cada lugar ocupado (fecha_hora_n). La web solo
+    // ve qué horarios están ocupados, nunca quién reservó.
+    match /turnos/{turno} {
+      allow read: if true;
+      allow create: if esAdmin() || (
+        request.resource.data.keys().hasOnly(['fecha', 'hora', 'k', 'creado'])
+        && request.resource.data.k is int
+        && request.resource.data.k >= 1 && request.resource.data.k <= capacidad()
+        && turno == request.resource.data.fecha + '_' + request.resource.data.hora + '_' + string(request.resource.data.k)
+        && existsAfter(/databases/$(database)/documents/citas/$(turno)));
+      allow update, delete: if esAdmin();
+    }
+    // citas: la web puede CREAR una reserva (confirmada, sin pagos), pero no leerlas
+    match /citas/{cita} {
+      allow create: if esAdmin() || (
+        existsAfter(/databases/$(database)/documents/turnos/$(cita))
+        && request.resource.data.origen == 'web'
+        && request.resource.data.estado == 'confirmada'
+        && request.resource.data.pagado == 0
+        && request.resource.data.estadoPago == 'pendiente'
+        && texto(request.resource.data.dueno, 80) && texto(request.resource.data.celular, 15)
+        && texto(request.resource.data.mascota, 60) && texto(request.resource.data.motivo, 300)
+        && request.resource.data.keys().hasOnly(['fecha', 'hora', 'k', 'servicioId', 'servicio', 'precio', 'code', 'mascotaId', 'mascota',
+             'especie', 'raza', 'dueno', 'celular', 'motivo', 'origen', 'estado', 'pagado', 'estadoPago', 'creado']));
+      allow read, update, delete: if esAdmin();
+    }
+
+    // ---------- Caja e inventario (solo el panel) ----------
+    match /movimientos/{id} {
+      allow read, write: if esAdmin();
+    }
+    match /inventario/{id} {
+      allow read, write: if esAdmin();
+    }
+
+    // ---------- Contenido de la web: todos lo ven, solo el panel lo cambia ----------
     match /productos/{id} {
       allow read: if true;
       allow write: if esAdmin();
@@ -39,12 +90,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if esAdmin();
     }
-    match /ajustes/{id} {
+    match /ajustes/{id} {      // ajustes/general (contacto, horarios) y ajustes/web (logo, textos)
       allow read: if true;
       allow write: if esAdmin();
     }
 
-    // Búsquedas de todas las mascotas (inicio, citas, vacunas) — solo el panel
+    // Búsquedas de todas las mascotas (inicio, vacunas) — solo el panel
     match /{ruta=**}/mascotas/{mascota} {
       allow read: if esAdmin();
     }

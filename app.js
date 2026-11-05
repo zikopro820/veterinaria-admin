@@ -78,13 +78,13 @@ const fld = (name, label, val = "", o = {}) => o.type === "checkbox" ? `<label c
 const datalist = (id, arr) => `<datalist id="${id}">${arr.map(x => `<option value="${esc(x)}">`).join("")}</datalist>`;
 
 /* Reducir foto antes de guardar (para que entre en la base de datos gratis) */
-function resizeImage(file, max = 640, q = .72) {
+function resizeImage(file, max = 640, q = .72, type = "image/jpeg") {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => { const im = new Image(); im.onload = () => {
       const s = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement("canvas");
       c.width = Math.round(im.width * s); c.height = Math.round(im.height * s); c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-      res(c.toDataURL("image/jpeg", q)); }; im.onerror = rej; im.src = r.result; };
+      res(c.toDataURL(type, q)); }; im.onerror = rej; im.src = r.result; };
     r.onerror = rej; r.readAsDataURL(file);
   });
 }
@@ -174,6 +174,8 @@ const VIEWS = {
           ${c.notas ? `<p style="margin-top:10px;color:var(--muted)"><b>Notas:</b> ${esc(c.notas)}</p>` : ""}
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
             <button class="btn btn-wa btn-sm" data-send-code>${ico("wa")} Enviar código por WhatsApp</button>
+            <button class="btn btn-wa btn-sm" data-send-citas="${esc(code)}">${ico("cal")} Enviar citas por WhatsApp</button>
+            <button class="btn btn-light btn-sm" data-cita-cliente="${esc(code)}">${ico("plus")} Agendar cita</button>
             <a class="btn btn-light btn-sm" href="${esc(portalLink(code))}" target="_blank" rel="noopener">${ico("eye")} Ver como cliente</a>
           </div>
         </div>
@@ -223,7 +225,7 @@ const VIEWS = {
           <div class="card"><div class="card-h"><h2>${ico("shield")} Carnet de vacunas</h2><button class="btn btn-light btn-sm" data-add-vac>${ico("plus")} Vacuna</button></div>
             <div class="list">${vac.length ? vac.map(v => `<div class="li"><div><b>${esc(v.n)}</b><small>Aplicada: ${fmt(v.ult)} · Próxima: ${fmt(v.prox)}</small></div>${vacSt(v)}<button class="icon-btn" data-del-item="vacunas" data-id="${esc(v.id)}" aria-label="Eliminar">${ico("trash")}</button></div>`).join("") : `<p class="empty">Sin vacunas registradas.</p>`}</div></div>
           <div class="card"><div class="card-h"><h2>${ico("history")} Historial clínico</h2><button class="btn btn-light btn-sm" data-add-his>${ico("plus")} Registrar atención</button></div>
-            ${his.length ? `<ul class="tl">${his.map(x => `<li><div><span class="d">${fmt(x.f)}${x.peso ? " · " + esc(x.peso) : ""}</span><b>${esc(x.t)}</b>${x.d ? `<p>${esc(x.d)}</p>` : ""}<span class="v">${esc(x.vet || "")}</span></div><button class="icon-btn" data-del-item="historial" data-id="${esc(x.id)}" aria-label="Eliminar">${ico("trash")}</button></li>`).join("")}</ul>` : `<p class="empty">Sin atenciones registradas.</p>`}</div>
+            ${his.length ? `<ul class="tl">${his.map(x => `<li><div><span class="d">${fmt(x.f)}${x.hora ? " · " + esc(x.hora) + " h" : ""}${x.peso ? " · " + esc(x.peso) : ""}${+x.monto ? ` · <b class="money">S/ ${(+x.monto).toFixed(2)}</b>${+x.pagado < +x.monto ? ` <span class="st warn">Saldo S/ ${(+x.monto - (+x.pagado || 0)).toFixed(2)}</span>` : ` <span class="st ok">Pagado</span>`}` : ""}</span><b>${esc(x.t)}</b>${x.d ? `<p>${esc(x.d)}</p>` : ""}<span class="v">${esc(x.vet || "")}</span></div><button class="icon-btn" data-del-item="historial" data-id="${esc(x.id)}" aria-label="Eliminar">${ico("trash")}</button></li>`).join("")}</ul>` : `<p class="empty">Sin atenciones registradas.</p>`}</div>
           <div class="card"><div class="card-h"><h2>${ico("bell")} Recordatorios para el cliente</h2><button class="btn btn-light btn-sm" data-add-rec>${ico("plus")} Recordatorio</button></div>
             <div class="list">${rec.length ? rec.map(r => `<div class="li"><div><b>${esc(r.t)}</b><small>${fmt(r.f)} · ${enDias(diff(r.f))}</small></div><button class="icon-btn" data-del-item="rec" data-id="${esc(r.id)}" aria-label="Eliminar">${ico("trash")}</button></div>`).join("") : `<p class="empty">Sin recordatorios.</p>`}</div></div>
         </div>
@@ -512,7 +514,11 @@ Object.assign(VIEWS, {
           ${fld("cierra", "Cierra (lun a sáb)", a.cierra, { type: "time", req: true })}
           ${fld("domingoCierra", "Cierra domingo (vacío = cerrado)", a.domingoCierra, { type: "time" })}
         </div>
-        <p class="sub" style="margin:-4px 0 14px">Los horarios para reservar citas en la web se generan cada 30 minutos dentro de este horario.</p>
+        <div class="grid2">
+          ${fld("turno", "Duración de cada turno", String(a.turno || 30), { opts: [["15", "15 minutos"], ["20", "20 minutos"], ["30", "30 minutos"], ["45", "45 minutos"], ["60", "1 hora"]] })}
+          ${fld("capacidad", "Citas a la misma hora (doctores)", String(a.capacidad || 1), { opts: [["1", "1 cita por horario"], ["2", "2 citas por horario"], ["3", "3 citas por horario"], ["4", "4 citas por horario"], ["5", "5 citas por horario"]] })}
+        </div>
+        <p class="sub" style="margin:-4px 0 14px">La web solo muestra los horarios con lugar libre. Si pones 2, se pueden reservar 2 citas a la misma hora.</p>
         <div class="card-h" style="margin-top:10px"><h2>${ico("paw")} Delivery del Pet Shop</h2></div>
         <div class="grid2">
           ${fld("delivery", "Costo de delivery (S/)", a.delivery, { type: "number", extra: 'min="0" step="0.5"' })}
@@ -531,7 +537,8 @@ Object.assign(VIEWS, {
       if (wa.length < 11) { $("[name=whatsapp]").style.borderColor = "var(--red)"; return toast("El WhatsApp debe incluir 51 + 9 dígitos", true); }
       await safe(async () => {
         await DB.saveAjustes({ whatsapp: wa, telefono: v("telefono"), direccion: v("direccion"), correo: v("correo"), abre: hh(v("abre")), cierra: hh(v("cierra")),
-          domingoCierra: hh(v("domingoCierra")), delivery: +v("delivery") || 0, deliveryGratis: +v("deliveryGratis") || 0 });
+          domingoCierra: hh(v("domingoCierra")), delivery: +v("delivery") || 0, deliveryGratis: +v("deliveryGratis") || 0,
+          turno: +$("[name=turno]", f).value || 30, capacidad: +$("[name=capacidad]", f).value || 1 });
         toast("Ajustes guardados"); $("#ajMsg").textContent = "Guardado · " + new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
       });
     });

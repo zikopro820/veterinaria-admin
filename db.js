@@ -12,7 +12,7 @@
   const ALFA = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";   // sin 0, O, 1, I para no confundir
   const now = () => new Date().toISOString();
   const uid = () => Math.random().toString(36).slice(2, 10);
-  const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const iso = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
   /* ---------------- MODO DEMO (localStorage) ---------------- */
   function seed() {
@@ -38,6 +38,38 @@
           historial: [{ id: uid(), f: iso(-30), t: "Consulta general", d: "Sarro moderado. Se programa limpieza dental en ayunas de 12 h.", vet: "Dr. Andrés Salas", peso: "11.8 kg" }],
           rec: [{ id: uid(), i: "alert", t: "Ayuno 12 h antes de la limpieza", f: iso(4) }], actualizado: now() } } } } };
   }
+  // Citas y caja de ejemplo para el MODO DEMO
+  function seedAgenda(d) {
+    d.citas = {}; d.turnos = {}; d.movimientos = d.movimientos || {};
+    const hhmm = () => { const n = new Date(); return String(n.getHours()).padStart(2, "0") + ":" + String(n.getMinutes()).padStart(2, "0"); };
+    const add = (dias, hora, code, mid, mascota, especie, dueno, cel, servicio, precio, pagado, origen) => {
+      const fecha = iso(dias), id = `${fecha}_${hora}_1`;
+      d.turnos[id] = { fecha, hora, k: 1, creado: now() };
+      d.citas[id] = { fecha, hora, k: 1, servicioId: "", servicio, precio, total: precio, pagado, estadoPago: pagado >= precio ? "pagado" : pagado > 0 ? "adelanto" : "pendiente",
+        pagos: pagado ? [{ monto: pagado, metodo: "Yape", fecha: iso(0), hora: hhmm() }] : [], code, mascotaId: mid, mascota, especie, raza: "", dueno, celular: cel, motivo: "", origen, estado: "confirmada", vet: "Dra. Carla Méndez", creado: now() };
+      if (pagado) { const mid2 = uid(); d.movimientos[mid2] = { fecha: iso(0), hora: hhmm(), tipo: "servicio", concepto: `Adelanto · ${servicio} – ${mascota}`, total: pagado, metodo: "Yape", items: [{ tipo: "servicio", n: servicio, q: 1, p: pagado }], citaId: id, code, cliente: dueno, anulado: false, creado: now() }; }
+    };
+    add(0, "10:00", "HV-2048", "max", "Max", "Perro", "Jorge Ramos", "912345678", "Consulta general", 50, 0, "panel");
+    add(0, "16:30", "", "", "Pelusa", "Gato", "Andrea Torres", "934567812", "Baño y peluquería", 40, 0, "web");
+    add(2, "10:30", "HV-1024", "rocky", "Rocky", "Perro", "María López", "987654321", "Vacunación", 45, 20, "panel");
+    add(5, "09:00", "HV-2048", "max", "Max", "Perro", "Jorge Ramos", "912345678", "Odontología", 150, 50, "web");
+    add(9, "16:00", "HV-1024", "luna", "Luna", "Gato", "María López", "987654321", "Control post operatorio", 0, 0, "panel");
+    // ventas de los últimos días para que los reportes no estén vacíos
+    const P = window.DATOS.productos, metodos = ["Efectivo", "Yape", "Plin", "Tarjeta"], md = (x, n) => ((x % n) + n) % n;
+    for (let dd = -20; dd <= 0; dd++) {
+      const n = 1 + md(dd * 7, 3);
+      for (let j = 0; j < n; j++) {
+        const p = P[md(dd * 5 + j * 3, P.length)], q = 1 + md(j + dd, 2), costo = Math.round(p.p * .62 * 10) / 10;
+        d.movimientos[uid()] = { fecha: iso(dd), hora: `1${j}:${j ? "15" : "40"}`, tipo: "venta", concepto: `Venta · ${p.n}`, total: Math.round(p.p * q * 100) / 100, metodo: metodos[md(j + dd, 4)],
+          items: [{ tipo: "producto", id: p.id, n: p.n, q, p: p.p, costo }], cliente: "", anulado: false, creado: now() };
+      }
+      if (dd % 2 === 0) d.movimientos[uid()] = { fecha: iso(dd), hora: "11:30", tipo: "servicio", concepto: "Consulta general", total: 50, metodo: metodos[md(dd + 1, 4)], items: [{ tipo: "servicio", n: "Consulta general", q: 1, p: 50 }], cliente: "Cliente de mostrador", anulado: false, creado: now() };
+      if (dd % 3 === 0) d.movimientos[uid()] = { fecha: iso(dd), hora: "15:00", tipo: "servicio", concepto: "Baño y peluquería", total: 40, metodo: "Yape", items: [{ tipo: "servicio", n: "Baño y peluquería", q: 1, p: 40 }], cliente: "Cliente de mostrador", anulado: false, creado: now() };
+    }
+    // las mascotas de ejemplo ya no usan "prox" (ahora todo está en la agenda)
+    Object.values(d.clientes || {}).forEach(c => Object.values(c.mascotas || {}).forEach(m => { delete m.prox; }));
+  }
+
   // Pet Shop, servicios y ajustes de ejemplo (datos.js)
   function ensure(d) {
     const X = window.DATOS; if (!X) return d; let ch = false;
@@ -45,6 +77,10 @@
     if (!d.productos) { d.productos = toMap(X.productos); ch = true; }
     if (!d.servicios) { d.servicios = toMap(X.servicios); ch = true; }
     if (!d.ajustes) { d.ajustes = { ...X.ajustes }; ch = true; }
+    if (!d.inventario) { d.inventario = {}; X.productos.forEach((p, i) => d.inventario[p.id] = { cantidad: [12, 0, 8, 25, 2, 30, 14, 9, 6, 20, 5, 4, 3, 7, 15, 18][i % 16], costo: Math.round(p.p * .62 * 10) / 10, minimo: 3 }); ch = true;
+      Object.entries(d.inventario).forEach(([id, v]) => { if (d.productos[id]) d.productos[id].stock = v.cantidad > 0 ? "disponible" : "agotado"; }); }
+    if (!d.web && X.web) { d.web = JSON.parse(JSON.stringify(X.web)); ch = true; }
+    if (!d.citas) { seedAgenda(d); ch = true; }
     if (ch) save(d); return d;
   }
   const load = () => { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.clientes) return ensure(d); } catch (e) {} const d = seed(); save(d); return ensure(d); };
@@ -137,7 +173,9 @@
     async delDocCol(col, id) { const d = load(); delete d[col][id]; save(d); },
     async getAjustes() { return clone(load().ajustes || {}); },
     async saveAjustes(a) { const d = load(); d.ajustes = { ...(d.ajustes || {}), ...a }; save(d); },
-    async importar(col) { const d = load(); d[col] = d[col] || {}; (window.DATOS[col] || []).forEach(({ id, ...r }) => d[col][id] = r); save(d); },
+    async importar(col) { const d = load(); d[col] = d[col] || {}; (window.DATOS[col] || []).forEach(({ id, ...r }) => d[col][id] = r);
+      if (col === "productos") { d.inventario = d.inventario || {}; window.DATOS.productos.forEach(p => { if (!d.inventario[p.id]) d.inventario[p.id] = { cantidad: 10, costo: Math.round(p.p * .62 * 10) / 10, minimo: 3 }; d.productos[p.id].stock = "disponible"; }); }
+      save(d); },
   });
   Object.assign(firebase, {
     async listCol(col) { const f = await F(); const s = await f.getDocs(f.collection(f.db, col)); return s.docs.map(d => ({ ...d.data(), id: d.id })); },
@@ -147,8 +185,100 @@
     async delDocCol(col, id) { const f = await F(); await f.deleteDoc(f.doc(f.db, col, id)); },
     async getAjustes() { const f = await F(); const s = await f.getDoc(f.doc(f.db, "ajustes", "general")); return s.exists() ? s.data() : {}; },
     async saveAjustes(a) { const f = await F(); await f.setDoc(f.doc(f.db, "ajustes", "general"), a, { merge: true }); },
-    async importar(col) { const f = await F(); for (const { id, ...r } of (window.DATOS[col] || [])) await f.setDoc(f.doc(f.db, col, id), { ...r, actualizado: now() }); },
+    async importar(col) { const f = await F();
+      for (const { id, ...r } of (window.DATOS[col] || [])) {
+        await f.setDoc(f.doc(f.db, col, id), { ...r, ...(col === "productos" ? { stock: "disponible" } : {}), actualizado: now() });
+        if (col === "productos") await f.setDoc(f.doc(f.db, "inventario", id), { cantidad: 10, costo: Math.round(r.p * .62 * 10) / 10, minimo: 3 }, { merge: true });
+      } },
   });
+
+  /* ---------- Agenda, caja e inventario ---------- */
+  const pubCita = c => ({ fecha: c.fecha, hora: c.hora, servicio: c.servicio, precio: +c.precio || 0, total: +(c.total ?? c.precio) || 0, pagado: +c.pagado || 0,
+    estadoPago: c.estadoPago || "pendiente", mascota: c.mascota || "", mascotaId: c.mascotaId || "", estado: c.estado || "confirmada", vet: c.vet || "", sede: c.sede || "" });
+  Object.assign(demo, {
+    async getDocX(col, id) { const d = load(); return d[col] && d[col][id] ? clone(d[col][id]) : null; },
+    async setDocX(col, id, data) { const d = load(); d[col] = d[col] || {}; d[col][id] = { ...(d[col][id] || {}), ...data }; save(d); },
+    async rango(col, a, b) { return Object.entries(load()[col] || {}).filter(([, x]) => x.fecha >= a && x.fecha <= b).map(([id, x]) => ({ ...clone(x), id })); },
+    async turnosRango(a, b) { return this.rango("turnos", a, b); },
+    async crearCita(base, cap) {
+      const d = load(); d.turnos = d.turnos || {}; d.citas = d.citas || {};
+      for (let k = 1; k <= cap; k++) { const id = `${base.fecha}_${base.hora}_${k}`; if (d.turnos[id]) continue;
+        d.turnos[id] = { fecha: base.fecha, hora: base.hora, k, creado: now() }; d.citas[id] = { ...base, k, creado: now() }; save(d); return id; }
+      return null;
+    },
+    async guardarCita(id, data) { const d = load(); d.citas[id] = { ...(d.citas[id] || {}), ...data, actualizado: now() }; save(d); },
+    async borrarCita(c) { const d = load(); delete d.citas[c.id]; delete d.turnos[c.id]; save(d); },
+    async bloquear(fecha, hora, cap, motivo) { const d = load(); d.turnos = d.turnos || {}; for (let k = 1; k <= cap; k++) { const id = `${fecha}_${hora}_${k}`; if (!d.turnos[id]) d.turnos[id] = { fecha, hora, k, bloqueo: true, motivo: motivo || "", creado: now() }; } save(d); },
+    async desbloquear(fecha, hora) { const d = load(); Object.entries(d.turnos || {}).forEach(([id, t]) => { if (t.fecha === fecha && t.hora === hora && t.bloqueo) delete d.turnos[id]; }); save(d); },
+    async stock(id, delta, extra = {}) {
+      const d = load(); d.inventario = d.inventario || {}; const inv = d.inventario[id] || { cantidad: 0, costo: 0, minimo: 3 };
+      inv.cantidad = (+inv.cantidad || 0) + delta; Object.assign(inv, extra); d.inventario[id] = inv;
+      if (d.productos && d.productos[id]) d.productos[id].stock = inv.cantidad > 0 ? "disponible" : "agotado";
+      save(d); return inv.cantidad;
+    },
+  });
+  Object.assign(firebase, {
+    async getDocX(col, id) { const f = await F(); const s = await f.getDoc(f.doc(f.db, col, id)); return s.exists() ? s.data() : null; },
+    async setDocX(col, id, data) { const f = await F(); await f.setDoc(f.doc(f.db, col, id), data, { merge: true }); },
+    async rango(col, a, b) { const f = await F(); const s = await f.getDocs(f.query(f.collection(f.db, col), f.where("fecha", ">=", a), f.where("fecha", "<=", b))); return s.docs.map(d => ({ ...d.data(), id: d.id })); },
+    async turnosRango(a, b) { return this.rango("turnos", a, b); },
+    async crearCita(base, cap) {
+      const f = await F();
+      for (let k = 1; k <= cap; k++) {
+        const id = `${base.fecha}_${base.hora}_${k}`;
+        try {
+          await f.runTransaction(f.db, async tx => {
+            const t = f.doc(f.db, "turnos", id); if ((await tx.get(t)).exists()) throw new Error("ocupado");
+            tx.set(t, { fecha: base.fecha, hora: base.hora, k, creado: now() });
+            tx.set(f.doc(f.db, "citas", id), { ...base, k, creado: now() });
+            if (base.code) tx.set(f.doc(f.db, "clientes", base.code, "agenda", id), pubCita(base));
+          });
+          return id;
+        } catch (e) { if (e.message !== "ocupado") throw e; }
+      }
+      return null;
+    },
+    async guardarCita(id, data) {
+      const f = await F(); const ref = f.doc(f.db, "citas", id);
+      await f.setDoc(ref, { ...data, actualizado: now() }, { merge: true });
+      const c = (await f.getDoc(ref)).data();
+      if (c && c.code) await f.setDoc(f.doc(f.db, "clientes", c.code, "agenda", id), pubCita(c));
+    },
+    async borrarCita(c) {
+      const f = await F(); const b = f.writeBatch(f.db);
+      b.delete(f.doc(f.db, "citas", c.id)); b.delete(f.doc(f.db, "turnos", c.id));
+      if (c.code) b.delete(f.doc(f.db, "clientes", c.code, "agenda", c.id));
+      await b.commit();
+    },
+    async bloquear(fecha, hora, cap, motivo) {
+      const f = await F();
+      for (let k = 1; k <= cap; k++) { const ref = f.doc(f.db, "turnos", `${fecha}_${hora}_${k}`);
+        if (!(await f.getDoc(ref)).exists()) await f.setDoc(ref, { fecha, hora, k, bloqueo: true, motivo: motivo || "", creado: now() }); }
+    },
+    async desbloquear(fecha, hora) {
+      const f = await F(); const s = await f.getDocs(f.query(f.collection(f.db, "turnos"), f.where("fecha", "==", fecha)));
+      for (const d of s.docs) if (d.data().hora === hora && d.data().bloqueo) await f.deleteDoc(d.ref);
+    },
+    async stock(id, delta, extra = {}) {
+      const f = await F(); const ref = f.doc(f.db, "inventario", id);
+      await f.setDoc(ref, { ...extra, cantidad: f.increment(delta) }, { merge: true });
+      const q = +((await f.getDoc(ref)).data().cantidad) || 0;
+      await f.setDoc(f.doc(f.db, "productos", id), { stock: q > 0 ? "disponible" : "agotado" }, { merge: true });
+      return q;
+    },
+  });
+  Object.assign(demo, {
+    async getWeb() { return clone(load().web || window.DATOS.web || {}); },
+    async saveWeb(w) { const d = load(); d.web = w; save(d); },
+    async citasDeCliente(code) { return Object.entries(load().citas || {}).filter(([, c]) => c.code === code).map(([id, c]) => ({ ...clone(c), id })); },
+  });
+  Object.assign(firebase, {
+    async getWeb() { const w = await this.getDocX("ajustes", "web"); return w || JSON.parse(JSON.stringify(window.DATOS.web || {})); },
+    async saveWeb(w) { const f = await F(); await f.setDoc(f.doc(f.db, "ajustes", "web"), w); },
+    async citasDeCliente(code) { const f = await F(); const s = await f.getDocs(f.query(f.collection(f.db, "citas"), f.where("code", "==", code))); return s.docs.map(d => ({ ...d.data(), id: d.id })); },
+  });
+  // Cuando una cita (o un cambio de pago) es del panel en modo demo también sincroniza la copia del cliente
+  demo.pubCita = firebase.pubCita = pubCita;
 
   const api = DEMO ? demo : firebase;
   api.nuevoCodigo = async function () {

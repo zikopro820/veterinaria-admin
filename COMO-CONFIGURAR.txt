@@ -32,6 +32,15 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
    Luego edita precios, fotos y nombres. Mientras estén vacíos, la web muestra los de ejemplo.
    En Ajustes pon el WhatsApp, dirección, horario y delivery reales.
 
+9. ACTUALIZACIÓN (agenda, caja, inventario y personalizar):
+   a) Vuelve a publicar las REGLAS (firestore.rules cambió). Cambia los correos y Publicar.
+   b) Ajustes → elige "Citas a la misma hora" y "Duración de cada turno" → Guardar.
+   c) Pet Shop e inventario → edita cada producto y pon su STOCK y COSTO
+      (con "Cargar ejemplos" ya vienen con 10 unidades).
+   d) Personalizar web → logo, nombre, colores, portada, nosotros, equipo y testimonios.
+   e) Si al abrir Agenda/Caja/Reportes sale un error de "índice", abre la consola (F12),
+      haz clic en el enlace de Firebase y presiona "Crear índice" (tarda 1-2 minutos).
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 
