@@ -10,7 +10,7 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
 
 3. Reglas de seguridad:
    Firestore Database → pestaña "Reglas" → borra todo, pega el contenido de firestore.rules
-   → cambia los correos por los del personal → Publicar.
+   → cambia los correos por los del personal → Publicar..
 
 4. Usuarios del personal:
    Compilación → Authentication → Comenzar → "Correo electrónico/contraseña" → Habilitar.
