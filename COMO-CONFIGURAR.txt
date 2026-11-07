@@ -66,6 +66,12 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
       si quieres usar "Iniciar atención" / "Terminar" en la agenda.
    e) En la ficha de atención puedes subir hasta 4 fotos (el cliente las ve en Mi Mascota).
 
+13. ACTUALIZACIÓN (lo usado en la atención, receta y PDF):
+   a) En la ficha de atención: "Usado en la atención" (se cobra y se suma al precio) y
+      "Receta para la casa" (no se cobra). Las reglas NO cambian.
+   b) El recibo y la receta se descargan en PDF desde el panel y desde Mi Mascota.
+   c) Sube también el archivo nuevo pdf.js (va en los DOS repositorios).
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 

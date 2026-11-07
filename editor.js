@@ -153,7 +153,7 @@ const PAGINA_ED = {
   },
   async servicios() {
     const ss = CUR.servs = ordenar(await DB.listCol("servicios")); CUR.list = ss;
-    return encCard("servicios") + listaServicios(ss) + listaCats("servicios")
+    return encCard("servicios") + listaServicios(ss) + card("Nota de precios", txt("servicios", "Nota de precios"), { ico: icoW("pill"), sub: "Aclara que los medicamentos y materiales se cobran aparte." }) + listaCats("servicios")
       + card("Sección «Y además»", txt("servicios", "Sección «Y además»") + nota("Aquí aparecen los servicios de tipo «Adicional (lista)»."), { ico: icoW("sparkle") })
       + nota("El aviso de emergencias y el llamado final de esta página se editan en <b>Inicio → Secciones</b> (son compartidos).") + bloquesCard("servicios");
   },

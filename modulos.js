@@ -179,8 +179,11 @@ async function nuevaCita(pre = {}) {
 }
 async function registrarPago(c, monto, metodo, etiqueta) {
   const f = todayISO(), h = nowHM();
+  const cg = (c.cargos || []).reduce((a, x) => a + (Math.max(1, +x.q || 1)) * (+x.p || 0), 0), tt = totalDe(c);
+  const pIns = cg > 0 && tt > 0 ? r2(monto * Math.min(cg / tt, 1)) : 0;
+  const items = [{ tipo: "servicio", n: c.servicio, q: 1, p: r2(monto - pIns) }, ...(pIns ? [{ tipo: "insumo", n: "Medicamentos y materiales de la atención", q: 1, p: pIns }] : [])];
   await DB.saveDocCol("movimientos", null, { fecha: f, hora: h, tipo: "servicio", concepto: `${etiqueta} · ${c.servicio} – ${c.mascota}`, total: monto, metodo,
-    items: [{ tipo: "servicio", n: c.servicio, q: 1, p: monto }], citaId: c.id, code: c.code || "", cliente: c.dueno || "", anulado: false });
+    items, citaId: c.id, code: c.code || "", cliente: c.dueno || "", anulado: false });
   const pagado = r2((+c.pagado || 0) + monto), t = totalDe(c);
   const patch = { pagado, pagos: [...(c.pagos || []), { monto, metodo, fecha: f, hora: h }], estadoPago: t > 0 && pagado >= t ? "pagado" : pagado > 0 ? "adelanto" : "pendiente" };
   await DB.guardarCita(c.id, patch);
@@ -191,7 +194,9 @@ async function registrarPago(c, monto, metodo, etiqueta) {
 async function syncHistorial(c, extra = {}) {   // crea o actualiza la atención en el historial de la mascota
   if (!c.code || !c.mascotaId) return;
   const m = await DB.getMascota(c.code, c.mascotaId); if (!m) return;
-  const datos = { monto: totalDe(c), pagado: +c.pagado || 0, metodo: [...new Set((c.pagos || []).map(p => p.metodo))].join(" + ") };
+  const cg = (c.cargos || []).reduce((a, x) => a + (Math.max(1, +x.q || 1)) * (+x.p || 0), 0);
+  const datos = { monto: totalDe(c), pagado: +c.pagado || 0, metodo: [...new Set((c.pagos || []).map(p => p.metodo))].join(" + "),
+    base: c.precioBase != null && c.precioBase !== "" ? +c.precioBase : r2(Math.max(totalDe(c) - cg, 0)), cargos: c.cargos || [], pagos: (c.pagos || []).map(p => ({ monto: +p.monto || 0, metodo: p.metodo || "", fecha: p.fecha || "", hora: p.hora || "" })) };
   const his = m.historial || [], i = his.findIndex(x => x.citaId === c.id);
   if (i >= 0) his[i] = { ...his[i], ...datos, ...extra };
   else his.push({ id: uid(), f: c.fecha, hora: c.hora, t: c.servicio, d: "", vet: c.vet || "", peso: "", citaId: c.id, ...datos, ...extra });
@@ -202,14 +207,14 @@ async function cobrar(c) {
   modal("Registrar pago", `
     <div class="pay-box"><div><small>Total</small><b>${S(totalDe(c))}</b></div><div><small>Pagado</small><b>${S(c.pagado)}</b></div><div class="due"><small>Saldo</small><b>${S(p.saldo)}</b></div></div>
     <div class="grid2">
-      ${fld("total", "Precio total del servicio (S/)", totalDe(c), { type: "number", extra: 'min="0" step="0.5"' })}
+      ${(c.cargos || []).length ? `<div class="field"><label>Precio total</label><input value="${S(totalDe(c))} (incluye ${(c.cargos || []).length} producto/s usado/s)" disabled><input type="hidden" name="total" value="${totalDe(c)}"></div>` : fld("total", "Precio total del servicio (S/)", totalDe(c), { type: "number", extra: 'min="0" step="0.5"' })}
       ${fld("monto", "Monto que paga ahora (S/)", p.saldo || "", { req: true, type: "number", extra: 'min="0.1" step="0.1"' })}
       ${fld("metodo", "Forma de pago", "Efectivo", { opts: MET })}
       ${fld("enviar", "Enviar el estado de pago por WhatsApp", true, { type: "checkbox" })}
       ${c.estado !== "atendida" && c.fecha <= todayISO() ? fld("atender", "Después de cobrar, abrir la ficha clínica para guardarla en el historial", true, { type: "checkbox", full: true, ph: "Doctor, diagnóstico y medicamentos" }) : ""}
     </div>`, async d => {
     let nc = { ...c };
-    if (r2(d.total) !== totalDe(c)) { const t = r2(d.total); await DB.guardarCita(c.id, { total: t, estadoPago: t > 0 && (+c.pagado || 0) >= t ? "pagado" : (+c.pagado || 0) > 0 ? "adelanto" : "pendiente" }); nc.total = t; }
+    if (r2(d.total) !== totalDe(c)) { const t = r2(d.total); nc.precioBase = r2(Math.max(t - (c.cargos || []).reduce((a, x) => a + (Math.max(1, +x.q || 1)) * (+x.p || 0), 0), 0)); await DB.guardarCita(c.id, { precioBase: nc.precioBase, total: t, estadoPago: t > 0 && (+c.pagado || 0) >= t ? "pagado" : (+c.pagado || 0) > 0 ? "adelanto" : "pendiente" }); nc.total = t; }
     const m = r2(d.monto); if (!(m > 0)) { toast("Monto no válido", true); return false; }
     nc = await registrarPago(nc, m, d.metodo, pagoInfo(nc).saldo <= m ? "Pago" : "Adelanto");
     toast("Pago registrado en caja"); if (d.enviar) openWA(c.celular, msgCitaWA(nc, aj));
@@ -390,15 +395,15 @@ Object.assign(VIEWS, {
     CUR.movs = movs;
     const ok = movs.filter(m => !m.anulado), tot = ok.reduce((a, m) => a + (+m.total || 0), 0);
     const porM = {}; ok.forEach(m => porM[m.metodo] = (porM[m.metodo] || 0) + (+m.total || 0));
-    const serv = ok.reduce((a, m) => a + (m.items || []).filter(i => i.tipo === "servicio").reduce((s, i) => s + i.p * i.q, 0), 0);
+    const serv = ok.reduce((a, m) => a + (m.items || []).filter(i => i.tipo !== "producto").reduce((s, i) => s + i.p * i.q, 0), 0);
     $("#view").innerHTML = topBar("Caja", "Cobros de servicios y ventas del Pet Shop",
       `<button class="btn btn-pri" data-venta>${ico("plus")} Venta rápida</button>`) + `
       <div class="card"><div class="ag-bar"><div class="ag-nav"><button class="icon-btn" data-cmov="-1">${ic2("left")}</button><button class="btn btn-light btn-sm" data-choy>Hoy</button><button class="icon-btn" data-cmov="1">${ic2("right")}</button><input type="date" id="cDate" value="${f}"></div>
         <h2 class="ag-title">${esc(largo(f).replace(/^./, x => x.toUpperCase()))}</h2></div>
         <div class="stats" style="margin:16px 0 6px">
           <div class="stat"><i>${ic2("cash")}</i><div><b>${S(tot)}</b><span>Total del día</span></div></div>
-          <div class="stat"><i>${ico("check")}</i><div><b>${S(serv)}</b><span>Servicios</span></div></div>
-          <div class="stat"><i>${ic2("box")}</i><div><b>${S(tot - serv)}</b><span>Productos</span></div></div>
+          <div class="stat"><i>${ico("check")}</i><div><b>${S(serv)}</b><span>Atenciones (servicio + medicamentos)</span></div></div>
+          <div class="stat"><i>${ic2("box")}</i><div><b>${S(tot - serv)}</b><span>Pet Shop</span></div></div>
           <div class="stat"><i>${ic2("file")}</i><div><b>${ok.length}</b><span>Operaciones</span></div></div>
         </div>
         <div class="met-row">${MET.map(m => `<div><small>${m}</small><b>${S(porM[m] || 0)}</b></div>`).join("")}</div>
@@ -425,14 +430,15 @@ Object.assign(VIEWS, {
     const [a, b] = per[P];
     const [movs, cs] = await Promise.all([DB.rango("movimientos", a, b), DB.rango("citas", addDays(hoy, -120), addDays(hoy, 60))]);
     const ok = movs.filter(m => !m.anulado);
-    let serv = 0, prod = 0, gan = 0; const porM = {}, porD = {}, topS = {}, topP = {};
+    let serv = 0, prod = 0, gan = 0, ins = 0; const porM = {}, porD = {}, topS = {}, topP = {};
     ok.forEach(m => {
       porM[m.metodo] = (porM[m.metodo] || 0) + (+m.total || 0); porD[m.fecha] = (porD[m.fecha] || 0) + (+m.total || 0);
       (m.items || []).forEach(i => { const v = i.p * i.q;
+        if (i.tipo === "insumo") { ins += v; return; }
         if (i.tipo === "producto") { prod += v; gan += (i.p - (+i.costo || 0)) * i.q; const t = topP[i.n] = topP[i.n] || { q: 0, v: 0 }; t.q += i.q; t.v += v; }
         else { serv += v; const t = topS[i.n] = topS[i.n] || { q: 0, v: 0 }; t.q += i.q; t.v += v; } });
     });
-    const total = serv + prod, maxM = Math.max(1, ...Object.values(porM)), dias = [];
+    const total = serv + prod + ins, maxM = Math.max(1, ...Object.values(porM)), dias = [];
     for (let x = a; x <= b && dias.length < 62; x = addDays(x, 1)) dias.push(x);
     const maxD = Math.max(1, ...dias.map(x => porD[x] || 0));
     const deudas = cs.filter(c => pagoInfo(c).saldo > 0 && (c.estado === "atendida" || c.fecha < hoy));
@@ -443,8 +449,8 @@ Object.assign(VIEWS, {
       <div class="stats">
         <div class="stat"><i>${ic2("cash")}</i><div><b>${S(total)}</b><span>Ingresos totales</span></div></div>
         <div class="stat"><i>${ico("check")}</i><div><b>${S(serv)}</b><span>Servicios</span></div></div>
-        <div class="stat"><i>${ic2("box")}</i><div><b>${S(prod)}</b><span>Productos</span></div></div>
-        <div class="stat"><i>${ic2("chart")}</i><div><b>${S(gan)}</b><span>Ganancia en productos</span></div></div>
+        <div class="stat"><i>${ico("shield")}</i><div><b>${S(ins)}</b><span>Medicamentos y materiales</span></div></div>
+        <div class="stat"><i>${ic2("box")}</i><div><b>${S(prod)}</b><span>Pet Shop · gana ${S(gan)}</span></div></div>
       </div>
       <div class="two-col">
         <div class="card"><div class="card-h"><h2>${ic2("chart")} Ingresos por día</h2><small class="sub">${ok.length} operaciones · ticket promedio ${S(ok.length ? total / ok.length : 0)}</small></div>

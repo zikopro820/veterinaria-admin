@@ -620,3 +620,37 @@ tr.dim td, .li.dim { opacity: .55; }
   @page { margin: 6mm; }
 }
 .rt-i small b { display: inline; }
+
+/* ===== Ficha: lo cobrado y la receta ===== */
+.ficha-sec { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: #fff; }
+.ficha-sec.cobra { border-color: #cfe9de; background: #f6fcf9; }
+.ficha-sec > label { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.ficha-sec > label .ico { width: 18px; height: 18px; color: var(--pri); }
+.tag-sec { font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; background: var(--mint); color: #fff; padding: 2px 8px; border-radius: 99px; }
+.tag-sec.gris { background: #8d8aa3; }
+.sec-hint { display: block; color: var(--muted); font-size: .8rem; margin: 2px 0 10px; }
+.cargo-head, .med.cargo { display: grid; grid-template-columns: 1fr 64px 96px 84px 36px; gap: 8px; align-items: center; }
+.cargo-head { font-size: .68rem; font-weight: 800; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; margin-bottom: 4px; }
+.med.cargo { margin-bottom: 8px; }
+.med.cargo .c-sub { text-align: right; font-size: .86rem; white-space: nowrap; }
+.cargo-sum { background: var(--soft); border-radius: 12px; padding: 10px 12px; font-size: .86rem; }
+.cargo-sum > div { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.cargo-sum .tot { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; font-size: 1rem; }
+.cargo-sum .due b { color: var(--red); } .cargo-sum .ok b { color: var(--mint); }
+@media (max-width: 640px) { .cargo-head { display: none; } .med.cargo { grid-template-columns: 1fr 56px 80px 34px; } .med.cargo .c-sub { display: none; } }
+.h-docs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.h-cg { font-size: .82rem; color: var(--ink); margin-top: 4px; }
+/* ===== Receta ===== */
+.rx-rp { margin: 12px 0 6px; font-weight: 800; }
+.rx-rp i { font-family: Georgia, serif; font-size: 1.3rem; color: var(--pri); margin-right: 6px; }
+.rx-list { padding-left: 20px; margin: 0 0 10px; }
+.rx-list li { margin-bottom: 7px; }
+.rx-list b { display: block; }
+.rx-list small { color: #666; }
+.rx-ind { background: #f4f2fb; border-radius: 10px; padding: 10px 12px; font-size: .84rem; margin: 6px 0; }
+.rx-ind small { display: block; font-size: .68rem; text-transform: uppercase; color: #888; font-weight: 800; margin-bottom: 2px; }
+.rx-ctrl { font-weight: 700; color: var(--pri); font-size: .86rem; margin: 8px 0; }
+.rx-firma { display: flex; flex-direction: column; align-items: flex-end; margin-top: 30px; text-align: center; }
+.rx-firma span { width: 170px; border-top: 1px solid #999; margin-bottom: 4px; }
+.rx-firma b, .rx-firma small { width: 170px; }
+.rx-firma small { color: #888; font-size: .72rem; }

@@ -197,7 +197,9 @@
 
   /* ---------- Agenda, caja e inventario ---------- */
   const pubCita = c => ({ fecha: c.fecha, hora: c.hora, servicio: c.servicio, precio: +c.precio || 0, total: +(c.total ?? c.precio) || 0, pagado: +c.pagado || 0,
-    estadoPago: c.estadoPago || "pendiente", mascota: c.mascota || "", mascotaId: c.mascotaId || "", estado: c.estado || "confirmada", vet: c.vet || "", sede: c.sede || "" });
+    estadoPago: c.estadoPago || "pendiente", mascota: c.mascota || "", mascotaId: c.mascotaId || "", estado: c.estado || "confirmada", vet: c.vet || "", sede: c.sede || "",
+    cargos: (c.cargos || []).map(x => ({ n: x.n, q: +x.q || 1, p: +x.p || 0 })), ...(c.precioBase != null ? { precioBase: +c.precioBase } : {}),
+    pagos: (c.pagos || []).map(p => ({ monto: +p.monto || 0, metodo: p.metodo || "", fecha: p.fecha || "", hora: p.hora || "" })) });
   Object.assign(demo, {
     async getDocX(col, id) { const d = load(); return d[col] && d[col][id] ? clone(d[col][id]) : null; },
     async setDocX(col, id, data) { const d = load(); d[col] = d[col] || {}; d[col][id] = { ...(d[col][id] || {}), ...data }; save(d); },

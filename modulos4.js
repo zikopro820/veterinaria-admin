@@ -33,6 +33,7 @@ citaCard = function (c, opt = {}) {   // eslint-disable-line no-global-assign
   const at = c.estado === "atendida";
   // recibo cuando ya hay algún pago
   if (+c.pagado > 0) h = h.replace('<div class="c-acts">', `<div class="c-acts"><button class="btn btn-light btn-sm" data-act="recibo">${ic2("receipt")}<span>Recibo</span></button>`);
+  if (at && c.code && c.mascotaId) h = h.replace('<div class="c-acts">', `<div class="c-acts"><button class="btn btn-light btn-sm" data-act="receta">${ico("paw")}<span>Receta</span></button>`);
   if (!TIEMPO_REAL || at || c.fecha !== todayISO()) {
     if (c.duracion && at) h = h.replace('<div class="badges">', `<div class="badges"><span class="st">${ic2("clock")} ${durTxt(c.duracion)}</span>`);
     return h;
@@ -135,12 +136,14 @@ VIEWS.reportes = async () => {
 /* =========================================================
    2) RECIBOS: imprimir, guardar en PDF o enviar por WhatsApp
    ========================================================= */
-const numRecibo = (pre, f, id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 1679616; return `${pre}-${String(f || "").replace(/-/g, "").slice(2)}-${h.toString(36).toUpperCase().padStart(4, "0")}`; };
+const numRecibo = (pre, f, id) => window.PDFV ? PDFV.num(pre, f, id) : pre + "-" + id;
+const negocio = aj => ({ nombre: NOMBRE_V, razon: aj.razonSocial || "", ruc: aj.ruc || "", dir: aj.direccion || "", tel: aj.telefono || "", logo: MARCA.logo || "", color: MARCA.color1 || "#5b3df5",
+  pie: aj.reciboPie || "", web: webBase().replace(/^https?:\/\//, "") + "mi-mascota" });
 function reciboDeCita(c) {
   const t = totalDe(c), pag = +c.pagado || 0;
   return { num: numRecibo("C", c.fecha, c.id), fecha: (c.pagos || []).slice(-1)[0]?.fecha || todayISO(), hora: (c.pagos || []).slice(-1)[0]?.hora || nowHM(),
     cliente: c.dueno, cel: c.celular, code: c.code, mascota: c.mascota, vet: c.vet, detalle: `Cita del ${fmtD(c.fecha)} · ${c.hora} h`,
-    items: [{ n: c.servicio, q: 1, p: t }], total: t, pagos: c.pagos || [], pagado: pag, saldo: r2(Math.max(t - pag, 0)) };
+    items: [{ n: c.servicio, q: 1, p: precioBaseDe(c), principal: true }, ...(c.cargos || []).map(x => ({ n: x.n, q: +x.q || 1, p: +x.p || 0 }))], total: t, pagos: c.pagos || [], pagado: pag, saldo: r2(Math.max(t - pag, 0)) };
 }
 function reciboDeMov(m) {
   return { num: numRecibo(m.tipo === "venta" ? "V" : "P", m.fecha, m.id), fecha: m.fecha, hora: m.hora, cliente: m.cliente || "", code: m.code || "", mascota: "", vet: "",
@@ -165,13 +168,14 @@ async function verRecibo(r) {
       <p class="rc-foot">${esc(aj.reciboPie || "¡Gracias por confiar en nosotros!")}${r.code ? `<br>Historial y pagos con tu código <b>${esc(r.code)}</b> en ${esc(webBase().replace(/^https?:\/\//, ""))}mi-mascota` : ""}</p>
       <p class="rc-legal">Comprobante interno de pago. No es boleta ni factura electrónica.</p>
     </div>
-    <div class="rc-bar"><button class="btn btn-pri" data-rc="print">${ic2("print")} Imprimir</button><button class="btn btn-light" data-rc="pdf">${ic2("file")} Guardar PDF</button>${r.cel ? `<button class="btn btn-wa" data-rc="wa">${ico("wa")} WhatsApp</button>` : ""}<button class="btn btn-light" data-rc="x">Cerrar</button></div>`;
+    <div class="rc-bar"><button class="btn btn-pri" data-rc="print">${ic2("print")} Imprimir</button><button class="btn btn-light" data-rc="pdf">${ic2("file")} Descargar PDF</button>${r.cel ? `<button class="btn btn-wa" data-rc="wa">${ico("wa")} WhatsApp</button>` : ""}<button class="btn btn-light" data-rc="x">Cerrar</button></div>`;
   document.body.appendChild(el);
   el.addEventListener("click", e => {
     const b = e.target.closest("[data-rc]"); if (!b && e.target === el) return el.remove(); if (!b) return;
     const k = b.dataset.rc;
     if (k === "x") return el.remove();
-    if (k === "print" || k === "pdf") { if (k === "pdf") toast("En la ventana elige «Guardar como PDF»"); document.body.classList.add("printing-rc"); setTimeout(() => { window.print(); document.body.classList.remove("printing-rc"); }, k === "pdf" ? 700 : 50); }
+    if (k === "print") { document.body.classList.add("printing-rc"); setTimeout(() => { window.print(); document.body.classList.remove("printing-rc"); }, 50); }
+    if (k === "pdf") { b.disabled = true; safe(() => PDFV.recibo({ ...r, neg: negocio(aj) })).finally(() => b.disabled = false); }
     if (k === "wa") {
       const L = [`Hola ${String(r.cliente || "").split(" ")[0]}, te saluda *${NOMBRE_V}*.`, "", `🧾 *Recibo N° ${r.num}*`, `Fecha: ${fmt(r.fecha)} ${r.hora || ""}`];
       if (r.mascota) L.push(`Mascota: ${r.mascota}`);
@@ -186,6 +190,53 @@ async function verRecibo(r) {
   });
 }
 
+const edadTxt = s => { if (!s) return ""; const m = Math.floor((Date.now() - toD(s)) / (30.44 * 864e5)); return m >= 12 ? `${Math.floor(m / 12)} año${m >= 24 ? "s" : ""}` : `${Math.max(m, 0)} meses`; };
+function recetaDe(h, m, cl) {
+  return { fecha: h.f, mascota: { nombre: m.nombre, especie: m.especie, raza: m.raza, peso: h.peso || m.peso, edad: edadTxt(m.nac) }, dueno: cl ? cl.dueno : "", cel: cl ? cl.celular : "", code: cl ? cl.codigo : "",
+    vet: h.vet, servicio: h.t, diagnostico: h.d, meds: (h.meds || []).filter(x => x.n), ind: h.ind, control: h.control, controlMotivo: h.controlMotivo };
+}
+function reciboDeHist(h, m, cl) {
+  const cargos = h.cargos || [], tot = +h.monto || 0, pag = +h.pagado || 0, base = h.base != null ? +h.base : r2(Math.max(tot - sumaCargos(cargos), 0));
+  const pagos = (h.pagos && h.pagos.length) ? h.pagos : pag ? [{ monto: pag, metodo: h.metodo || "", fecha: h.f }] : [];
+  return { num: numRecibo("C", h.f, h.citaId || h.id), fecha: (pagos.slice(-1)[0] || {}).fecha || h.f, hora: (pagos.slice(-1)[0] || {}).hora || "", cliente: cl ? cl.dueno : "", cel: cl ? cl.celular : "", code: cl ? cl.codigo : "",
+    mascota: m.nombre, vet: h.vet, detalle: `Atención del ${fmtD(h.f)}${h.hora ? " · " + h.hora + " h" : ""}`, items: [{ n: h.t, q: 1, p: base, principal: true }, ...cargos.map(x => ({ n: x.n, q: +x.q || 1, p: +x.p || 0 }))],
+    total: tot, pagos, pagado: pag, saldo: r2(Math.max(tot - pag, 0)) };
+}
+async function verReceta(r) {
+  const aj = await cargarAjustes(); if (!MARCA.nombre1 && !MARCA.logo) await cargarMarca();
+  $("#recibo")?.remove();
+  const logo = MARCA.logo ? `<img src="${esc(foto(MARCA.logo, 200))}" alt="">` : `<span class="rc-paw">${ico("paw")}</span>`, mm = r.mascota || {};
+  const el = document.createElement("div"); el.id = "recibo"; el.className = "rc-wrap";
+  el.innerHTML = `<div class="rc-paper rx-paper">
+      <div class="rc-head">${logo}<div><b>${esc(aj.razonSocial || NOMBRE_V)}</b>${aj.ruc ? `<small>RUC ${esc(aj.ruc)}</small>` : ""}<small>${esc(aj.direccion || "")}</small><small>${esc(aj.telefono || "")}</small></div></div>
+      <div class="rc-title"><span>RECETA</span><b>${fmt(r.fecha)}</b></div>
+      <div class="rc-meta"><div><small>Mascota</small><b>${esc(mm.nombre || "")}</b></div><div><small>Especie / raza</small><b>${esc([mm.especie, mm.raza].filter(Boolean).join(" · "))}</b></div>${mm.peso ? `<div><small>Peso</small><b>${esc(mm.peso)}</b></div>` : ""}${mm.edad ? `<div><small>Edad</small><b>${esc(mm.edad)}</b></div>` : ""}<div><small>Dueño(a)</small><b>${esc(r.dueno || "")}</b></div><div><small>Doctor(a)</small><b>${esc(r.vet || "")}</b></div></div>
+      ${r.diagnostico ? `<p class="rc-det"><b>Diagnóstico:</b> ${esc(r.diagnostico)}</p>` : ""}
+      <div class="rx-rp"><i>Rp.</i> Medicamentos para la casa</div>
+      ${r.meds.length ? `<ol class="rx-list">${r.meds.map(x => `<li><b>${esc(x.n)}</b><small>${esc([x.dosis && "Dosis: " + x.dosis, x.cada && "Cada " + x.cada, x.dias && "Por " + x.dias + (/^\d+$/.test(x.dias) ? " días" : "")].filter(Boolean).join(" · "))}</small></li>`).join("")}</ol>` : `<p class="rc-det">Sin medicamentos recetados.</p>`}
+      ${r.ind ? `<div class="rx-ind"><small>Indicaciones</small>${esc(r.ind)}</div>` : ""}
+      ${r.control ? `<p class="rx-ctrl">Próximo control: ${fmt(r.control)}${r.controlMotivo ? " · " + esc(r.controlMotivo) : ""}</p>` : ""}
+      <div class="rx-firma"><span></span><b>${esc(r.vet || "Médico veterinario")}</b><small>Médico veterinario</small></div>
+    </div>
+    <div class="rc-bar"><button class="btn btn-pri" data-rx="print">${ic2("print")} Imprimir</button><button class="btn btn-light" data-rx="pdf">${ic2("file")} Descargar PDF</button>${r.cel ? `<button class="btn btn-wa" data-rx="wa">${ico("wa")} WhatsApp</button>` : ""}<button class="btn btn-light" data-rx="x">Cerrar</button></div>`;
+  document.body.appendChild(el);
+  el.addEventListener("click", e => {
+    const b = e.target.closest("[data-rx]"); if (!b && e.target === el) return el.remove(); if (!b) return;
+    const k = b.dataset.rx;
+    if (k === "x") return el.remove();
+    if (k === "print") { document.body.classList.add("printing-rc"); setTimeout(() => { window.print(); document.body.classList.remove("printing-rc"); }, 50); }
+    if (k === "pdf") { b.disabled = true; safe(() => PDFV.receta({ ...r, neg: negocio(aj) })).finally(() => b.disabled = false); }
+    if (k === "wa") {
+      const L = [`Hola ${String(r.dueno || "").split(" ")[0]}, te saluda *${NOMBRE_V}*.`, "", `💊 *Receta de ${mm.nombre}* (${fmt(r.fecha)})`, `Doctor(a): ${r.vet || ""}`, ""];
+      r.meds.forEach((x, i) => L.push(`${i + 1}. *${x.n}*${x.dosis ? " – " + x.dosis : ""}${x.cada ? ", cada " + x.cada : ""}${x.dias ? ", por " + x.dias + (/^\d+$/.test(x.dias) ? " días" : "") : ""}`));
+      if (r.ind) L.push("", `*Indicaciones:* ${r.ind}`);
+      if (r.control) L.push("", `*Próximo control:* ${fmt(r.control)}${r.controlMotivo ? " – " + r.controlMotivo : ""}`);
+      if (r.code) L.push("", `Descárgala en PDF desde Mi Mascota: ${portalLink(r.code)}`);
+      openWA(r.cel, L.join("\n"));
+    }
+  });
+}
+
 // botón "Recibo" en la tarjeta de cita y en Caja
 document.addEventListener("click", async e => {
   const t = e.target.closest("button"); if (!t || !$("#view").contains(t)) return;
@@ -193,6 +244,8 @@ document.addEventListener("click", async e => {
   if (box && t.dataset.act) {
     const c = CITAS[box.dataset.cid]; if (!c) return;
     if (t.dataset.act === "recibo") { const fresh = await DB.getDocX("citas", c.id); return verRecibo(reciboDeCita({ ...c, ...(fresh || {}), id: c.id })); }
+    if (t.dataset.act === "receta") return safe(async () => { const [cl, m] = await Promise.all([DB.getCliente(c.code), DB.getMascota(c.code, c.mascotaId)]);
+      const h = ((m && m.historial) || []).find(x => x.citaId === c.id); if (!h) return toast("Primero guarda la ficha de la atención", true); verReceta(recetaDe(h, m, cl)); });
     if (t.dataset.act === "ini") return safe(() => iniciarAtencion(c));
     if (t.dataset.act === "fin") return safe(() => terminarAtencion(c));
   }
@@ -278,6 +331,12 @@ const _mascota4 = VIEWS.mascota;
 VIEWS.mascota = async p => {
   await _mascota4(p);
   const m = CUR.m; if (!m) return;
+  for (const hx of (m.historial || [])) {
+    const del = $(`[data-del-item="historial"][data-id="${CSS.escape(hx.id)}"]`); if (!del) continue;
+    const tieneRx = (hx.meds || []).some(x => x.n) || hx.ind, tieneRc = +hx.monto > 0 || +hx.pagado > 0;
+    if ((hx.cargos || []).length) del.previousElementSibling.insertAdjacentHTML("beforeend", `<p class="h-cg"><b>Usado en la atención:</b> ${hx.cargos.map(x => `${x.q > 1 ? x.q + " × " : ""}${esc(x.n)} (${S(x.q * x.p)})`).join(" · ")}</p>`);
+    if (tieneRx || tieneRc) del.previousElementSibling.insertAdjacentHTML("beforeend", `<div class="h-docs">${tieneRc ? `<button type="button" class="btn btn-light btn-sm" data-hrc="${esc(hx.id)}">${ic2("receipt")} Recibo</button>` : ""}${tieneRx ? `<button type="button" class="btn btn-light btn-sm" data-hrx="${esc(hx.id)}">${ico("paw")} Receta</button>` : ""}</div>`);
+  }
   for (const hx of (m.historial || []).filter(x => (x.fotos || []).length)) {
     const del = $(`[data-del-item="historial"][data-id="${CSS.escape(hx.id)}"]`); if (!del) continue;
     const box = document.createElement("div"); box.className = "h-fotos"; box.innerHTML = hx.fotos.map(() => `<span class="ph-load"></span>`).join("");
@@ -285,6 +344,11 @@ VIEWS.mascota = async p => {
     Promise.all(hx.fotos.map(id => DB.getFoto(p.code, id).catch(() => null))).then(src => { box.innerHTML = src.filter(Boolean).map(x => `<button type="button" class="h-foto" data-zoom><img src="${x}" alt=""></button>`).join(""); });
   }
 };
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-hrc], [data-hrx]"); if (!b || CUR.v !== "mascota") return;
+  const id = b.dataset.hrc || b.dataset.hrx, h = (CUR.m.historial || []).find(x => x.id === id); if (!h) return;
+  if (b.dataset.hrc) verRecibo(reciboDeHist(h, CUR.m, CUR.cliente)); else verReceta(recetaDe(h, CUR.m, CUR.cliente));
+});
 document.addEventListener("click", e => {
   const z = e.target.closest("[data-zoom]"); if (!z) return;
   e.stopPropagation();
