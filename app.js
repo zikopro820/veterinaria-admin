@@ -41,7 +41,8 @@ const edad = s => { if (!s) return "—"; const m = Math.floor((Date.now() - toD
 const vacSt = v => { const n = diff(v.prox); return n < 0 ? `<span class="st bad">Vencida</span>` : n <= 30 ? `<span class="st warn">Vence ${enDias(n)}</span>` : `<span class="st ok">Al día</span>`; };
 
 /* ---------- Utilidades ---------- */
-const foto = (f, w = 500) => !f ? "" : (f.startsWith("data:") || f.startsWith("http")) ? f : `https://images.unsplash.com/photo-${f}?auto=format&fit=crop&w=${w}&q=80`;
+const MEDIA = {};   // imágenes guardadas aparte (m:ID)
+const foto = (f, w = 500) => !f ? "" : f.startsWith("m:") ? (MEDIA[f.slice(2)] || "") : (f.startsWith("data:") || f.startsWith("http")) ? f : `https://images.unsplash.com/photo-${f}?auto=format&fit=crop&w=${w}&q=80`;
 const avatar = (m, cls = "av") => `<span class="${cls}">${m.foto ? `<img src="${esc(foto(m.foto, 200))}" alt="" onerror="this.remove()">` : ico("paw")}</span>`;
 const waNum = c => { const d = String(c || "").replace(/\D/g, ""); return d.length === 9 ? "51" + d : d; };
 const openWA = (cel, txt) => window.open(`https://wa.me/${waNum(cel)}?text=${encodeURIComponent(txt)}`, "_blank");
@@ -251,8 +252,19 @@ const VIEWS = {
   /* ---------------- VACUNAS ---------------- */
   async vacunas() {
     const ms = await DB.allMascotas();
-    const vac = ms.flatMap(m => (m.vacunas || []).map(v => ({ ...v, m }))).filter(v => diff(v.prox) <= 60).sort((a, b) => a.prox.localeCompare(b.prox));
-    $("#view").innerHTML = topBar("Vacunas", "Vencidas y por vencer en los próximos 60 días. Envía el recordatorio con un clic.") + `<div class="card">${vacList(vac)}</div>`;
+    const vac = ms.flatMap(m => (m.vacunas || []).map(v => ({ ...v, m }))).filter(v => v.prox && diff(v.prox) <= 30).sort((a, b) => a.prox.localeCompare(b.prox));
+    const venc = vac.filter(v => diff(v.prox) < 0), sem = vac.filter(v => diff(v.prox) >= 0 && diff(v.prox) <= 7), mes = vac.filter(v => diff(v.prox) > 7);
+    const porAvisar = [...venc, ...sem].filter(v => !avisado(v)).length;
+    $("#view").innerHTML = topBar("Recordatorio de vacunas", "Avisa a cada dueño por WhatsApp con un clic. Queda marcado como «Avisado» para no repetir.") + `
+      <div class="stats">
+        <div class="stat"><i>${ico("alert")}</i><div><b>${venc.length}</b><span>Vencidas</span></div></div>
+        <div class="stat"><i>${ico("cal")}</i><div><b>${sem.length}</b><span>Vencen esta semana</span></div></div>
+        <div class="stat"><i>${ico("shield")}</i><div><b>${mes.length}</b><span>Próximos 30 días</span></div></div>
+        <div class="stat hl"><i>${ico("wa")}</i><div><b>${porAvisar}</b><span>Por avisar</span></div></div>
+      </div>
+      <div class="card"><div class="card-h"><h2>${ico("alert")} Vencidas</h2><small class="sub">${venc.filter(v => !avisado(v)).length} sin avisar</small></div>${vacList(venc, "No hay vacunas vencidas.")}</div>
+      <div class="card"><div class="card-h"><h2>${ico("cal")} Vencen esta semana</h2><small class="sub">${sem.filter(v => !avisado(v)).length} sin avisar</small></div>${vacList(sem, "Ninguna vacuna vence esta semana.")}</div>
+      <div class="card"><div class="card-h"><h2>${ico("shield")} Próximos 30 días</h2></div>${vacList(mes, "Nada pendiente en los próximos 30 días.")}</div>`;
   },
 };
 
@@ -265,10 +277,12 @@ function citasTable(l) {
     <td class="hide-m">${esc(m.prox.servicio)}</td><td class="hide-m">${esc(m.prox.vet || "")}</td>
     <td style="text-align:right"><button class="btn btn-wa btn-sm" data-remind-row>${ico("wa")}<span class="hide-m">Recordar</span></button></td></tr>`).join("")}</tbody></table></div>`;
 }
-function vacList(l) {
-  if (!l.length) return `<p class="empty">No hay vacunas por vencer.</p>`;
-  return `<div class="list">${l.map(v => `<div class="li" data-pet="${esc(v.m.id)}" data-code="${esc(v.m.code)}" style="cursor:pointer">${avatar(v.m)}<div><b>${esc(v.m.nombre)} · ${esc(v.n)}</b><small>${esc(v.m.dueno)} · ${fmt(v.prox)}</small></div>${vacSt(v)}
-    <button class="btn btn-wa btn-sm" data-vac-remind="${esc(v.id)}" aria-label="Recordar por WhatsApp">${ico("wa")}</button></div>`).join("")}</div>`;
+const avisado = v => v.avisado && diff(v.avisado) >= -14;   // avisado en las últimas 2 semanas
+function vacList(l, vacio = "No hay vacunas por vencer.") {
+  if (!l.length) return `<p class="empty">${vacio}</p>`;
+  return `<div class="list">${l.map(v => `<div class="li vac-row" data-pet="${esc(v.m.id)}" data-code="${esc(v.m.code)}" style="cursor:pointer">${avatar(v.m)}<div><b>${esc(v.m.nombre)} · ${esc(v.n)}</b><small>${esc(v.m.dueno)}${v.m.celular ? " · " + esc(v.m.celular) : ""} · ${fmt(v.prox)}</small></div>
+    <div class="vac-st">${vacSt(v)}${avisado(v) ? `<span class="st ok">Avisado ✓ ${fmtD(v.avisado)}</span>` : ""}</div>
+    <button class="btn ${avisado(v) ? "btn-light" : "btn-wa"} btn-sm" data-vac-remind="${esc(v.id)}" aria-label="Avisar por WhatsApp">${ico("wa")}<span class="hide-m">${avisado(v) ? "Otra vez" : "Avisar"}</span></button></div>`).join("")}</div>`;
 }
 
 /* =========================================================
@@ -379,7 +393,10 @@ document.addEventListener("click", async e => {
     const [c, m] = await Promise.all([DB.getCliente(code), DB.getMascota(code, id)]);
     if (t.matches("[data-remind-row]")) return openWA(c.celular, msgCita(c, m));
     const v = m.vacunas.find(x => x.id === t.dataset.vacRemind); const n = diff(v.prox);
-    return openWA(c.celular, `Hola ${c.dueno.split(" ")[0]}, te saluda ${A.nombre}. La vacuna *${v.n}* de *${m.nombre}* ${n < 0 ? "venció el " + fmt(v.prox) : "vence el " + fmt(v.prox)}. ¿Te reservamos una cita para su refuerzo?\n\nCarnet de vacunas: ${portalLink(c.codigo)}`);
+    const nom = typeof NOMBRE_V !== "undefined" ? NOMBRE_V : A.nombre, cuando = n < 0 ? `*venció* el ${fmtD(v.prox)}` : n === 0 ? "le toca *hoy*" : n === 1 ? "le toca *mañana*" : `le toca el *${fmtD(v.prox)}*`;
+    openWA(c.celular, `Hola ${c.dueno.split(" ")[0]}, te saluda *${nom}* 🐾\n\nA *${m.nombre}* ${cuando} su vacuna *${v.n}*.${n < 0 ? " Es importante ponerla al día para que siga protegido." : ""}\n\n¿Te separamos una cita? Puedes reservar aquí en un minuto:\n${webBase()}citas?codigo=${encodeURIComponent(c.codigo)}\n\nCarnet de vacunas de ${m.nombre}: ${portalLink(c.codigo)}`);
+    m.vacunas = m.vacunas.map(x => x.id === v.id ? { ...x, avisado: todayISO() } : x);
+    await DB.saveMascota(code, id, { vacunas: m.vacunas }); toast("Marcado como avisado"); return refresh();
   }
   if (t.matches("[data-client]")) return go("cliente", { code: t.dataset.client });
   if (t.matches("[data-pet]")) return go("mascota", { code: t.dataset.code || CUR.code, id: t.dataset.pet });

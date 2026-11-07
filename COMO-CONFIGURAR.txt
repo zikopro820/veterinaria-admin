@@ -55,6 +55,17 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
    c) Al atender, la ficha pide doctor y diagnóstico; agrega medicamentos, indicaciones,
       peso, temperatura y próximo control. Todo pasa al historial y a Mi Mascota.
 
+12. ACTUALIZACIÓN (editor de páginas, vacunas, tiempo real, recibos y fotos):
+   a) Vuelve a publicar las REGLAS (firestore.rules cambió: ahora incluye "medios" y "fotos").
+      Cambia los correos de ejemplo por los tuyos y presiona Publicar.
+   b) Editor de páginas → elige una página (Inicio, Servicios, Pet Shop, Citas, Mi Mascota,
+      Nosotros, Contacto) y edita todo lo que tiene. Presiona "Guardar y publicar".
+      Servicios, productos y categorías se guardan al momento.
+   c) Vacunas → "Avisar" abre WhatsApp con el mensaje listo y la marca como "Avisado".
+   d) Ajustes → pon razón social y RUC para el recibo. Activa "Atención en tiempo real"
+      si quieres usar "Iniciar atención" / "Terminar" en la agenda.
+   e) En la ficha de atención puedes subir hasta 4 fotos (el cliente las ve en Mi Mascota).
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 

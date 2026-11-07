@@ -317,7 +317,7 @@ Object.assign(VIEWS, {
           ${porCobrar.length ? `<div class="card"><div class="card-h"><h2>${ic2("cash")} Saldos por cobrar</h2></div><div class="list">${porCobrar.slice(0, 5).map(c => `<div class="li"><div><b>${esc(c.mascota)} · ${esc(c.dueno)}</b><small>${esc(c.servicio)} · ${fmtD(c.fecha)}</small></div><span class="st warn">${S(pagoInfo(c).saldo)}</span></div>`).join("")}</div></div>` : ""}
           <div class="card"><div class="card-h"><h2>${ic2("box")} Stock bajo</h2><button class="btn btn-light btn-sm" data-goto="tienda">Inventario</button></div>
             <div class="list">${bajos.slice(0, 6).map(p => `<div class="li"><div><b>${esc(p.n)}</b><small>Mínimo ${+p.inv.minimo || 0}</small></div><span class="st ${+p.inv.cantidad <= 0 ? "bad" : "warn"}">${+p.inv.cantidad <= 0 ? "Agotado" : p.inv.cantidad + " und."}</span></div>`).join("") || `<p class="empty">Todo con stock suficiente.</p>`}</div></div>
-          <div class="card"><div class="card-h"><h2>${ico("shield")} Vacunas por vencer</h2><button class="btn btn-light btn-sm" data-goto="vacunas">Ver todas</button></div>${vacList(vac.slice(0, 4))}</div>
+          <div class="card"><div class="card-h"><h2>${ico("shield")} Vacunas por avisar</h2><button class="btn btn-light btn-sm" data-goto="vacunas">${(() => { const n = vac.filter(v => diff(v.prox) <= 7 && !avisado(v)).length; return n ? `<b class="pill-n">${n}</b> por avisar esta semana` : "Ver todas"; })()}</button></div>${vacList(vac.filter(v => !avisado(v) || diff(v.prox) >= 0).slice(0, 4))}</div>
         </div>
       </div>`;
   },

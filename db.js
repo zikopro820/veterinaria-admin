@@ -89,7 +89,9 @@
 
   const demo = {
     mode: "demo",
-    async onUser(cb) { let u = null; try { u = JSON.parse(sessionStorage.getItem("hv_admin")); } catch (e) {} cb(u); this._cb = cb; },
+    async onUser(cb) { let u = null; try { u = JSON.parse(sessionStorage.getItem("hv_admin")); } catch (e) {} this._cb = cb;
+      // espera a que carguen todos los módulos del panel antes de abrir la sesión guardada
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => cb(u), { once: true }); else setTimeout(() => cb(u), 0); },
     async login(email, pass) {
       if (!email || pass.length < 4) throw new Error("Correo o contraseña incorrectos.");
       const u = { email }; try { sessionStorage.setItem("hv_admin", JSON.stringify(u)); } catch (e) {} this._cb && this._cb(u); return u;
@@ -119,7 +121,7 @@
   }
   const firebase = {
     mode: "firebase",
-    async onUser(cb) { const f = await F(); f.onAuthStateChanged(f.auth, u => cb(u ? { email: u.email } : null)); },
+    async onUser(cb) { const f = await F(); if (document.readyState === "loading") await new Promise(r => document.addEventListener("DOMContentLoaded", r, { once: true })); f.onAuthStateChanged(f.auth, u => cb(u ? { email: u.email } : null)); },
     async login(email, pass) {
       const f = await F();
       try { await f.signInWithEmailAndPassword(f.auth, email, pass); }
@@ -151,6 +153,7 @@
     async deleteCliente(code) {
       const f = await F();
       for (const m of await this.listMascotas(code)) await f.deleteDoc(f.doc(f.db, "clientes", code, "mascotas", m.id));
+      for (const sub of ["fotos", "agenda"]) { const q = await f.getDocs(f.collection(f.db, "clientes", code, sub)); for (const d of q.docs) await f.deleteDoc(d.ref); }
       await f.deleteDoc(f.doc(f.db, "privado", code)); await f.deleteDoc(f.doc(f.db, "clientes", code));
     },
     async listMascotas(code) { const f = await F(); const s = await f.getDocs(f.collection(f.db, "clientes", code, "mascotas")); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
@@ -291,6 +294,22 @@
     async getProdInfo(id) { return this.getDocX("productos_info", id); },
     async saveProdInfo(id, data) { const f = await F(); await f.setDoc(f.doc(f.db, "productos_info", id), data); },
     async delProdInfo(id) { const f = await F(); await f.deleteDoc(f.doc(f.db, "productos_info", id)); },
+  });
+
+  /* ---------- Imágenes de la web (medios) y fotos del historial ---------- */
+  Object.assign(demo, {
+    async saveMedio(data) { const d = load(); d.medios = d.medios || {}; const id = uid() + uid(); d.medios[id] = { data, creado: now() }; save(d); return id; },
+    async getMedios(ids) { const m = load().medios || {}, o = {}; ids.forEach(id => { if (m[id]) o[id] = m[id].data; }); return o; },
+    async saveFoto(code, data, meta = {}) { const d = load(); d.fotos = d.fotos || {}; d.fotos[code] = d.fotos[code] || {}; const id = uid() + uid(); d.fotos[code][id] = { ...meta, data, creado: now() }; save(d); return id; },
+    async getFoto(code, id) { const x = ((load().fotos || {})[code] || {})[id]; return x ? x.data : null; },
+    async delFoto(code, id) { const d = load(); if (d.fotos && d.fotos[code]) delete d.fotos[code][id]; save(d); },
+  });
+  Object.assign(firebase, {
+    async saveMedio(data) { const f = await F(); const r = await f.addDoc(f.collection(f.db, "medios"), { data, creado: now() }); return r.id; },
+    async getMedios(ids) { const f = await F(), o = {}; const r = await Promise.all(ids.map(id => f.getDoc(f.doc(f.db, "medios", id)).catch(() => null))); r.forEach((d, i) => { if (d && d.exists()) o[ids[i]] = d.data().data; }); return o; },
+    async saveFoto(code, data, meta = {}) { const f = await F(); const r = await f.addDoc(f.collection(f.db, "clientes", code, "fotos"), { ...meta, data, creado: now() }); return r.id; },
+    async getFoto(code, id) { const f = await F(); const d = await f.getDoc(f.doc(f.db, "clientes", code, "fotos", id)); return d.exists() ? d.data().data : null; },
+    async delFoto(code, id) { const f = await F(); await f.deleteDoc(f.doc(f.db, "clientes", code, "fotos", id)); },
   });
 
   // Cuando una cita (o un cambio de pago) es del panel en modo demo también sincroniza la copia del cliente

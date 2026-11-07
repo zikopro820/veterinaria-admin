@@ -29,6 +29,11 @@ service cloud.firestore {
         allow read: if true;            // solo dentro del código que ya conoce
         allow write: if esAdmin();
       }
+      // Fotos del historial (radiografías, heridas…): las ve quien tiene el código
+      match /fotos/{foto} {
+        allow read: if true;
+        allow write: if esAdmin();
+      }
       // Copia de sus citas para "Mi Mascota" (fecha, hora, servicio y estado de pago)
       match /agenda/{cita} {
         allow read: if true;
@@ -92,6 +97,10 @@ service cloud.firestore {
       allow write: if esAdmin();
     }
     match /productos_info/{id} {   // galería, descripción y detalles de cada producto
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+    match /medios/{id} {       // imágenes de la web subidas desde el Editor de páginas
       allow read: if true;
       allow write: if esAdmin();
     }
