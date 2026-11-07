@@ -654,3 +654,71 @@ tr.dim td, .li.dim { opacity: .55; }
 .rx-firma span { width: 170px; border-top: 1px solid #999; margin-bottom: 4px; }
 .rx-firma b, .rx-firma small { width: 170px; }
 .rx-firma small { color: #888; font-size: .72rem; }
+
+/* =========================================================
+   RADIO DEL EQUIPO
+   ========================================================= */
+.rd-fab { position: fixed; right: 22px; bottom: 22px; z-index: 140; width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; box-shadow: 0 16px 34px -12px rgba(20,15,60,.6); transition: .2s; }
+.rd-fab:hover { transform: translateY(-2px); background: var(--pri); }
+.rd-fab .ico { width: 26px; height: 26px; }
+.rd-fab.hidden { display: none; }
+.rd-badge { position: absolute; top: -2px; right: -2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: var(--red); color: #fff; font-size: .72rem; font-weight: 800; display: none; place-items: center; border: 2px solid #fff; }
+.rd-fab.has .rd-badge { display: grid; }
+.rd-fab.has { animation: rdpulse 1.6s infinite; }
+@keyframes rdpulse { 50% { box-shadow: 0 0 0 10px rgba(91,61,245,.18), 0 16px 34px -12px rgba(20,15,60,.6); } }
+.rd-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 150; width: 380px; max-width: 100%; background: #fff; box-shadow: -20px 0 50px -20px rgba(20,15,60,.4); transform: translateX(105%); transition: transform .28s ease; display: flex; flex-direction: column; overflow-y: auto; padding: 0 18px 18px; }
+.rd-panel.open { transform: none; }
+.rd-h { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 12px; position: sticky; top: 0; background: #fff; z-index: 2; }
+.rd-h > div { display: flex; gap: 10px; align-items: center; font-size: 1.05rem; }
+.rd-h .ico { width: 22px; height: 22px; color: var(--pri); }
+.rd-x { border: 0; background: var(--soft); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: grid; place-items: center; }
+.rd-setup { background: var(--soft); border-radius: 16px; padding: 16px; }
+.rd-setup p { color: var(--muted); font-size: .86rem; margin: 2px 0 10px; }
+.rd-setup input#rdNom { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; margin-bottom: 10px; }
+.rd-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.rd-roles label { cursor: pointer; } .rd-roles input { position: absolute; opacity: 0; }
+.rd-roles span { display: block; text-align: center; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-weight: 700; font-size: .86rem; }
+.rd-roles input:checked + span { border-color: var(--pri); background: var(--pri-soft); color: var(--pri); }
+.rd-me { display: flex; justify-content: space-between; align-items: center; font-size: .86rem; color: var(--muted); margin-bottom: 8px; }
+.rd-link { border: 0; background: none; color: var(--pri); font-weight: 700; cursor: pointer; font: inherit; font-size: .82rem; }
+.rd-sound { width: 100%; display: flex; gap: 8px; align-items: center; justify-content: center; border: 1px dashed #e8b4a6; background: #fff4f0; color: #c2410c; border-radius: 12px; padding: 10px; font: inherit; font-weight: 700; font-size: .84rem; cursor: pointer; }
+.rd-sound.on { border: 1px solid #bfeedd; background: #e9f9f2; color: #0f8a5f; }
+.rd-sound .ico { width: 18px; height: 18px; }
+.rd-ptt-wrap { text-align: center; padding: 16px 0 8px; }
+.rd-dest { display: inline-flex; gap: 6px; align-items: center; font-size: .84rem; color: var(--muted); margin-bottom: 14px; }
+.rd-dest select { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; font: inherit; font-weight: 700; color: var(--ink); }
+.rd-ptt { width: 150px; height: 150px; border-radius: 50%; border: 0; background: radial-gradient(circle at 35% 30%, var(--pri-2), var(--pri)); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; margin: 0 auto; cursor: pointer; font: inherit; font-weight: 700; font-size: .78rem; padding: 18px; box-shadow: 0 18px 40px -14px rgba(91,61,245,.7); user-select: none; -webkit-user-select: none; touch-action: none; transition: transform .15s; }
+.rd-ptt .ico { width: 42px; height: 42px; }
+.rd-ptt.rec { background: radial-gradient(circle at 35% 30%, #ff7b7b, var(--red)); transform: scale(1.06); animation: rdrec 1s infinite; }
+@keyframes rdrec { 50% { box-shadow: 0 0 0 16px rgba(239,68,68,.18), 0 18px 40px -14px rgba(239,68,68,.7); } }
+.rd-hint { display: block; color: var(--muted); font-size: .76rem; margin-top: 10px; }
+.rd-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 12px; }
+.rd-quick button { display: flex; gap: 6px; align-items: center; border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px; font: inherit; font-weight: 700; font-size: .82rem; cursor: pointer; text-align: left; }
+.rd-quick button:hover { border-color: var(--pri); color: var(--pri); }
+.rd-quick .ico { width: 16px; height: 16px; color: var(--pri); flex-shrink: 0; }
+.rd-txt { display: flex; gap: 8px; margin-bottom: 14px; }
+.rd-txt input { flex: 1; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: .86rem; }
+.rd-list { display: grid; gap: 8px; }
+.rd-msg { background: var(--soft); border-radius: 14px; padding: 10px 12px; font-size: .86rem; }
+.rd-msg.mio { background: var(--pri-soft); }
+.rd-msg.auto { background: #fff8e8; }
+.rd-msg.otro { opacity: .55; }
+.rd-mh { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; margin-bottom: 3px; }
+.rd-mh small { color: var(--muted); font-size: .74rem; }
+.rd-mh time { margin-left: auto; color: var(--muted); font-size: .72rem; }
+.rd-to { font-size: .7rem; font-weight: 700; color: var(--pri); }
+.rd-msg p .ico { width: 13px; height: 13px; color: #c78f00; vertical-align: -2px; }
+.rd-play { display: inline-flex; gap: 6px; align-items: center; border: 0; background: #fff; border-radius: 99px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: .8rem; color: var(--pri); cursor: pointer; }
+.rd-play .ico { width: 13px; height: 13px; }
+.rd-empty { color: var(--muted); font-size: .85rem; text-align: center; padding: 14px; }
+.rd-cfg { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; font-size: .86rem; }
+.rd-cfg summary { cursor: pointer; font-weight: 700; margin-bottom: 8px; }
+.rd-cfg .chk { margin-bottom: 6px; }
+.rd-pop { position: fixed; top: 16px; left: 50%; transform: translate(-50%, -140%); z-index: 400; background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 14px; font-size: .9rem; max-width: min(520px, calc(100% - 32px)); box-shadow: 0 16px 40px -12px rgba(0,0,0,.45); transition: transform .3s; }
+.rd-pop.show { transform: translate(-50%, 0); }
+.rd-pop b { color: #c9bcff; margin-right: 4px; }
+@media (max-width: 640px) { .rd-fab { right: 14px; bottom: 14px; width: 54px; height: 54px; } .rd-ptt { width: 132px; height: 132px; } }
+@media print { .rd-fab, .rd-panel, .rd-pop { display: none !important; } }
+.save-bar { padding-right: 86px; }
+body:has(.modal.open) .rd-fab, body:has(#recibo) .rd-fab, body:has(.lightbox) .rd-fab { display: none; }
+@media (max-width: 640px) { .save-bar { padding-right: 76px; } }

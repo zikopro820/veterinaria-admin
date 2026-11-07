@@ -79,6 +79,11 @@ service cloud.firestore {
       allow read, update, delete: if esAdmin();
     }
 
+    // ---------- Radio del equipo (solo el personal) ----------
+    match /radio/{id} {
+      allow read, create, delete: if esAdmin();
+    }
+
     // ---------- Caja e inventario (solo el panel) ----------
     match /movimientos/{id} {
       allow read, write: if esAdmin();

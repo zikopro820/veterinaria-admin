@@ -72,6 +72,16 @@ Mientras no lo conectes, el panel funciona en MODO DEMO (datos solo en tu navega
    b) El recibo y la receta se descargan en PDF desde el panel y desde Mi Mascota.
    c) Sube también el archivo nuevo pdf.js (va en los DOS repositorios).
 
+14. ACTUALIZACIÓN (Radio del equipo):
+   a) Vuelve a publicar las REGLAS (firestore.rules cambió: ahora incluye "radio").
+      Cambia los correos de ejemplo por los tuyos y presiona Publicar.
+   b) En el panel, abajo a la derecha, toca el botón de la radio. Cada persona pone su
+      nombre y su rol (Doctor, Recepción, Caja o Grooming) y toca "Activar sonido".
+   c) Mantén presionado el micrófono para hablar (máx. 30 s). También hay botones rápidos
+      y mensajes escritos que se leen en voz alta.
+   d) Avisos automáticos: atención terminada (con cuánto cobrar), reservas web y pagos.
+   e) Para escuchar, el panel debe estar abierto (en el celular, con la pantalla encendida).
+
 Listo: entra al panel con el correo del doctor. Al crear un cliente se genera su código (ej. HV-7K3P9).
 Con el botón "Enviar código por WhatsApp" el cliente recibe el enlace directo a Mi Mascota.
 

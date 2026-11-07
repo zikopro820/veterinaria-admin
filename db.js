@@ -314,6 +314,31 @@
     async delFoto(code, id) { const f = await F(); await f.deleteDoc(f.doc(f.db, "clientes", code, "fotos", id)); },
   });
 
+  /* ---------- Radio del equipo (mensajes de voz y avisos en tiempo real) ---------- */
+  const RK = "hv_radio", radioCbs = [];
+  const radioLeer = () => { try { return JSON.parse(localStorage.getItem(RK)) || []; } catch (e) { return []; } };
+  window.addEventListener("storage", e => {
+    if (e.key === RK) { const l = radioLeer(), vistos = new Set((e.oldValue ? JSON.parse(e.oldValue) : []).map(x => x.id)); l.filter(x => !vistos.has(x.id)).forEach(m => radioCbs.forEach(cb => cb(m))); }
+  });
+  Object.assign(demo, {
+    async radioEnviar(m) { const l = radioLeer().filter(x => x.ts > Date.now() - 864e5); const msg = { ...m, id: uid() + uid(), ts: Date.now(), creado: now() }; l.push(msg);
+      try { localStorage.setItem(RK, JSON.stringify(l.slice(-60))); } catch (e) { localStorage.setItem(RK, JSON.stringify(l.filter(x => !x.audio).slice(-60))); }
+      radioCbs.forEach(cb => cb(msg)); return msg.id; },
+    radioEscuchar(desde, cb) { radioLeer().filter(x => x.ts >= desde).forEach(cb); radioCbs.push(cb); },
+    async radioLimpiar() { localStorage.setItem(RK, JSON.stringify(radioLeer().filter(x => x.ts > Date.now() - 864e5))); },
+    citasNuevas(desdeIso, cb) {   // reservas web que llegan mientras el panel está abierto
+      const ids = () => Object.keys(load().citas || {}); let antes = new Set(ids());
+      window.addEventListener("storage", e => { if (e.key !== KEY) return; const d = load(); Object.entries(d.citas || {}).forEach(([id, c]) => { if (!antes.has(id) && c.origen === "web") cb({ ...c, id }); }); antes = new Set(ids()); });
+    },
+  });
+  Object.assign(firebase, {
+    async radioEnviar(m) { const f = await F(); const r = await f.addDoc(f.collection(f.db, "radio"), { ...m, ts: Date.now(), creado: now() }); return r.id; },
+    async radioEscuchar(desde, cb) { const f = await F(); f.onSnapshot(f.query(f.collection(f.db, "radio"), f.where("ts", ">=", desde)), s => s.docChanges().forEach(ch => { if (ch.type === "added") cb({ ...ch.doc.data(), id: ch.doc.id }); }), e => console.warn("Radio:", e.message)); },
+    async radioLimpiar() { const f = await F(); const s = await f.getDocs(f.query(f.collection(f.db, "radio"), f.where("ts", "<", Date.now() - 864e5))); for (const d of s.docs.slice(0, 80)) await f.deleteDoc(d.ref); },
+    async citasNuevas(desdeIso, cb) { const f = await F(); let primera = true;
+      f.onSnapshot(f.query(f.collection(f.db, "citas"), f.where("creado", ">=", desdeIso)), s => { if (!primera) s.docChanges().forEach(ch => { const c = ch.doc.data(); if (ch.type === "added" && c.origen === "web") cb({ ...c, id: ch.doc.id }); }); primera = false; }, e => console.warn("Citas nuevas:", e.message)); },
+  });
+
   // Cuando una cita (o un cambio de pago) es del panel en modo demo también sincroniza la copia del cliente
   demo.pubCita = firebase.pubCita = pubCita;
 
